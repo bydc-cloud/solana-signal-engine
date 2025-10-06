@@ -5,6 +5,8 @@ Combines Helix scanner APIs with AURA autonomous intelligence system
 """
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import uvicorn
 import asyncio
 import logging
@@ -121,18 +123,28 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}")
         await websocket_manager.disconnect(websocket)
 
+# Dashboard endpoint
+@app.get("/dashboard")
+async def dashboard():
+    """Serve the dashboard HTML"""
+    return FileResponse("dashboard/index.html")
+
+# Mount static files for dashboard assets (if any)
+# app.mount("/dashboard/static", StaticFiles(directory="dashboard/static"), name="dashboard-static")
+
 # Root endpoint
 @app.get("/")
 async def root():
     """API information"""
     return {
         "name": "AURA - Autonomous Crypto Intelligence",
-        "version": "0.2.1",
+        "version": "0.3.0",
         "endpoints": {
             "helix_legacy": ["/status", "/alerts", "/logs"],
             "aura": ["/api/portfolio", "/api/watchlist", "/api/tokens", "/api/strategies", "/api/alerts", "/api/config"],
             "health": ["/health"],
             "websocket": ["/ws"],
+            "dashboard": ["/dashboard"],
         },
         "docs": "/docs",
     }

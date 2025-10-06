@@ -481,21 +481,49 @@ User Query: {user_message}
             await update.message.reply_text(f"❌ Error processing voice: {str(e)}")
 
     async def _generate_ai_response(self, query: str, context: str) -> str:
-        """Generate AI response using MCP Sequential Thinking"""
+        """Generate AI response using Claude API via Anthropic"""
         try:
-            # Use Sequential Thinking MCP for intelligent analysis
-            prompt = f"""You are AURA, an autonomous crypto trading intelligence assistant.
+            # Try using Anthropic Claude API directly
+            anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+
+            if anthropic_key:
+                try:
+                    import anthropic
+
+                    client = anthropic.Anthropic(api_key=anthropic_key)
+
+                    prompt = f"""You are AURA, an autonomous crypto trading intelligence assistant integrated with a Telegram bot.
 
 {context}
 
-Provide a helpful, concise response to the user's query.
+Provide a helpful, concise response (max 3-4 sentences) to the user's query.
 Focus on actionable insights and data-driven analysis.
+Use emojis sparingly and keep formatting simple for Telegram.
 
-Query: {query}
-"""
+User Query: {query}
 
-            # For now, return a smart contextual response
-            # In production, this would call Claude via MCP
+Respond directly to the user's question based on the system context above."""
+
+                    message = client.messages.create(
+                        model="claude-3-5-sonnet-20241022",
+                        max_tokens=300,
+                        temperature=0.7,
+                        messages=[
+                            {"role": "user", "content": prompt}
+                        ]
+                    )
+
+                    ai_response = message.content[0].text
+                    logger.info(f"✅ Claude API response: {ai_response[:50]}...")
+
+                    return f"🤖 {ai_response}"
+
+                except ImportError:
+                    logger.warning("anthropic package not installed, using fallback")
+                except Exception as e:
+                    logger.error(f"Claude API error: {e}")
+
+            # Fallback: Smart contextual response
             response = f"🤖 **AURA Analysis**\n\n"
             response += f"Query: _{query}_\n\n"
             response += "Based on current system data, I'm analyzing your request...\n\n"
@@ -503,6 +531,7 @@ Query: {query}
             response += "• `/portfolio` - Full portfolio breakdown\n"
             response += "• `/signals` - Recent trading signals\n"
             response += "• `/stats` - System statistics\n"
+            response += "\n_Note: Set ANTHROPIC_API_KEY for AI-powered responses_"
 
             return response
 
