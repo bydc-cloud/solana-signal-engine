@@ -23,9 +23,6 @@ from aura.websocket_manager import websocket_manager
 # Import Dashboard API routes
 from dashboard_api import router as dashboard_router
 
-# Import Telegram webhook routes
-from telegram_webhook import router as telegram_router
-
 # Create unified app
 app = FastAPI(
     title="AURA - Autonomous Crypto Intelligence",
@@ -64,9 +61,6 @@ app.include_router(aura_router, prefix="/api/aura", tags=["AURA"])
 
 # Mount Dashboard API routes under /api prefix
 app.include_router(dashboard_router, tags=["Dashboard"])
-
-# Mount Telegram webhook routes
-app.include_router(telegram_router)
 
 # Unified health check
 @app.get("/health")
