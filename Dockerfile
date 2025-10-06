@@ -29,6 +29,7 @@ EXPOSE ${PORT:-8000}
 # Start AURA unified server, scanner, and autonomous worker
 CMD python3 init_db.py && \
     python3 init_aura_db.py && \
+    python3 run_migrations.py && \
     uvicorn aura_server:app --host 0.0.0.0 --port ${PORT:-8000} & \
     python3 REALITY_MOMENTUM_SCANNER.py & \
     python3 aura_worker.py & \
