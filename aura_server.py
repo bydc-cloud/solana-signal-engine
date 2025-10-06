@@ -7,13 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-# Import Helix existing routes
-from api_server import (
-    get_status,
-    get_alerts,
-    get_logs,
-    router as helix_router
-)
+# Import Helix existing endpoints (they're standalone functions, not a router)
+from api_server import get_status, get_alerts, get_logs
 
 # Import AURA routes
 from aura.api import router as aura_router
