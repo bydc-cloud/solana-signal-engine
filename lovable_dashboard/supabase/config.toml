@@ -1,0 +1,16 @@
+project_id = "wzyxacwjtltcswefbedu"
+
+[functions.gpt5-chat]
+verify_jwt = false
+
+[functions.wallet-management]
+verify_jwt = false
+
+[functions.auto-trader]
+verify_jwt = false
+
+[functions.nansen-intelligence]
+verify_jwt = false
+
+[functions.wallet-discovery]
+verify_jwt = false
