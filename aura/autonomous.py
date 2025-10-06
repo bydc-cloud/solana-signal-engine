@@ -10,6 +10,14 @@ from .database import db
 from .memory import memory
 from .mcps.crypto_mcp import crypto_mcp
 
+# Import MCP Toolkit for autonomous tool use
+try:
+    from .mcp_toolkit import mcp_toolkit
+    MCP_TOOLKIT_AVAILABLE = True
+except ImportError:
+    mcp_toolkit = None
+    MCP_TOOLKIT_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,6 +44,76 @@ class AutonomousEngine:
         except Exception as e:
             self.telegram = None
             logger.warning(f"Telegram bot not available: {e}")
+
+    # ═══════════════════════════════════════════════════════════
+    # AUTONOMOUS DISCOVERY (MCP TOOLS)
+    # ═══════════════════════════════════════════════════════════
+
+    def discover_trending_tokens(self) -> int:
+        """
+        🔧 MCP TOOL: Autonomously discover trending tokens using CoinGecko
+        Called periodically by worker to find hot tokens
+        Returns number of trending tokens added to watchlist
+        """
+        try:
+            if not MCP_TOOLKIT_AVAILABLE:
+                return 0
+
+            import asyncio
+
+            # Get trending tokens from CoinGecko MCP
+            trending = asyncio.run(mcp_toolkit.get_trending_tokens())
+
+            if not trending:
+                logger.debug("No trending tokens from CoinGecko MCP")
+                return 0
+
+            added_count = 0
+            for token_data in trending[:5]:  # Top 5 trending
+                try:
+                    symbol = token_data.get('symbol', '').upper()
+                    coin_id = token_data.get('id', '')
+                    market_cap_rank = token_data.get('market_cap_rank', 0)
+
+                    logger.info(f"🔧 MCP: Discovered trending token {symbol} (rank #{market_cap_rank})")
+
+                    # Check if already in watchlist
+                    watchlist = self.db.get_watchlist()
+                    if any(w.get("symbol") == symbol for w in watchlist):
+                        continue
+
+                    # Add to watchlist if not already there
+                    reason = f"Trending on CoinGecko (rank #{market_cap_rank})"
+                    alert_rules = {
+                        "price_change_percent": 15,
+                        "volume_spike_ratio": 3.0,
+                    }
+
+                    # Use coin_id as address (will be resolved later)
+                    self.db.add_to_watchlist(coin_id, reason, alert_rules)
+
+                    # Create alert
+                    self.db.create_alert(
+                        coin_id,
+                        f"🔥 {symbol} is trending on CoinGecko (rank #{market_cap_rank})",
+                        "medium",
+                        metadata=token_data
+                    )
+
+                    added_count += 1
+
+                except Exception as e:
+                    logger.error(f"Process trending token error: {e}")
+                    continue
+
+            if added_count > 0:
+                logger.info(f"🔧 MCP: Added {added_count} trending tokens to watchlist")
+
+            return added_count
+
+        except Exception as e:
+            logger.error(f"Discover trending tokens error: {e}")
+            return 0
 
     # ═══════════════════════════════════════════════════════════
     # SIGNAL MONITORING
@@ -103,7 +181,7 @@ class AutonomousEngine:
     # ═══════════════════════════════════════════════════════════
 
     def _enrich_token(self, address: str, symbol: str, payload: Dict) -> None:
-        """Enrich token with additional data sources"""
+        """Enrich token with additional data sources - USES MCP TOOLS"""
         try:
             # Store basic token info
             metadata = {
@@ -112,6 +190,31 @@ class AutonomousEngine:
                 "holders": payload.get("holders", 0),
                 "price": payload.get("price", 0),
             }
+
+            # 🔧 MCP TOOL: Get additional market data from CoinGecko
+            if MCP_TOOLKIT_AVAILABLE:
+                try:
+                    import asyncio
+                    # Try to get CoinGecko data
+                    coingecko_data = asyncio.run(mcp_toolkit.get_token_market_data(symbol))
+                    if coingecko_data:
+                        metadata["coingecko_rank"] = coingecko_data.get("market_cap_rank", 0)
+                        metadata["ath"] = coingecko_data.get("ath", 0)
+                        metadata["ath_change_percent"] = coingecko_data.get("ath_change_percentage", 0)
+                        metadata["price_change_24h"] = coingecko_data.get("price_change_percentage_24h", 0)
+
+                        logger.info(f"🔧 MCP: Enriched {symbol} with CoinGecko data")
+
+                        # Add fact from CoinGecko
+                        self.db.add_token_fact(
+                            address,
+                            "market",
+                            f"CoinGecko rank: #{coingecko_data.get('market_cap_rank', 'N/A')}, ATH: ${coingecko_data.get('ath', 0):.6f}",
+                            "coingecko_mcp",
+                            0.95
+                        )
+                except Exception as e:
+                    logger.debug(f"CoinGecko MCP enrichment skipped: {e}")
 
             self.db.upsert_token(address, symbol, symbol, metadata)
 
@@ -124,16 +227,53 @@ class AutonomousEngine:
                 0.9
             )
 
-            # Store in memory
+            # 🔧 MCP TOOL: Scrape token page with Firecrawl
+            if MCP_TOOLKIT_AVAILABLE:
+                try:
+                    import asyncio
+                    # Scrape Birdeye page for additional context
+                    birdeye_url = f"https://birdeye.so/token/{address}"
+                    page_data = asyncio.run(mcp_toolkit.scrape_webpage(birdeye_url))
+
+                    if page_data and len(page_data) > 100:
+                        # Extract key info from scraped content
+                        self.db.add_token_fact(
+                            address,
+                            "social",
+                            f"Birdeye page data: {page_data[:200]}...",
+                            "firecrawl_mcp",
+                            0.8
+                        )
+                        logger.info(f"🔧 MCP: Scraped {symbol} Birdeye page")
+                except Exception as e:
+                    logger.debug(f"Firecrawl MCP scraping skipped: {e}")
+
+            # Store in memory using MCP
             observations = [
                 f"Detected by scanner at {datetime.now().isoformat()}",
                 f"Momentum score: {payload.get('momentum_score', 0)}",
                 f"Market cap: ${metadata['mc']:,.0f}",
                 f"Liquidity: ${metadata['liquidity']:,.0f}",
             ]
+
+            # Add CoinGecko observations if available
+            if "coingecko_rank" in metadata:
+                observations.append(f"CoinGecko rank: #{metadata['coingecko_rank']}")
+                observations.append(f"24h price change: {metadata['price_change_24h']:.2f}%")
+
+            # 🔧 MCP TOOL: Store in memory MCP
+            if MCP_TOOLKIT_AVAILABLE:
+                try:
+                    import asyncio
+                    asyncio.run(mcp_toolkit.remember_token(address, observations))
+                    logger.info(f"🔧 MCP: Stored {symbol} in memory graph")
+                except Exception as e:
+                    logger.debug(f"Memory MCP storage skipped: {e}")
+
+            # Fallback to local memory
             self.memory.remember_token(address, observations)
 
-            logger.info(f"Autonomous: Enriched {symbol}")
+            logger.info(f"Autonomous: Enriched {symbol} with MCP tools")
 
         except Exception as e:
             logger.error(f"Autonomous enrich token error: {e}")

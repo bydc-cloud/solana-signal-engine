@@ -89,11 +89,20 @@ async def async_worker_cycle(cycle_count: int):
     # 2. Check governance proposals (every cycle)
     await check_governance_proposals()
 
-    # 3. Check whale activity (every 5 cycles = ~2.5 minutes)
+    # 3. 🔧 MCP TOOL: Discover trending tokens (every 20 cycles = ~10 minutes)
+    if cycle_count % 20 == 0:
+        try:
+            trending_count = autonomous_engine.discover_trending_tokens()
+            if trending_count > 0:
+                logger.info(f"🔥 MCP: Added {trending_count} trending tokens from CoinGecko")
+        except Exception as e:
+            logger.error(f"Trending discovery error: {e}")
+
+    # 4. Check whale activity (every 5 cycles = ~2.5 minutes)
     if cycle_count % 5 == 0:
         await check_whale_activity()
 
-    # 4. Analyze sentiment (every 10 cycles = ~5 minutes)
+    # 5. Analyze sentiment (every 10 cycles = ~5 minutes)
     if cycle_count % 10 == 0:
         await analyze_sentiment()
 
@@ -114,6 +123,7 @@ def main():
     """Main worker loop"""
     logger.info("🤖 AURA Autonomous Worker starting...")
     logger.info("✨ Features: Signal Processing, Governance, Whale Tracking, Sentiment Analysis")
+    logger.info("🔧 MCP Tools: CoinGecko, Firecrawl, Memory, Puppeteer, Context7")
 
     # Setup Telegram bot in background
     try:
