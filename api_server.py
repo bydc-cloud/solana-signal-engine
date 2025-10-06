@@ -485,6 +485,152 @@ async def get_logs(lines: int = 100):
 
 
 # ============================================================================
+# LOVABLE DASHBOARD ENDPOINTS
+# ============================================================================
+
+@app.get("/signals/all")
+async def get_all_signals(hours: int = 168, limit: int = 100):
+    """Get all historical signals (alias for /alerts)"""
+    return await get_alerts(hours=hours, limit=limit)
+
+
+@app.get("/tokens/trending")
+async def get_trending_tokens(sort: str = "momentum", limit: int = 20):
+    """Get trending tokens from recent alerts"""
+    try:
+        cutoff = (datetime.now() - timedelta(hours=24)).isoformat()
+
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+
+            # Get recent alerts with high GS scores
+            cur.execute("""
+                SELECT
+                    token_address,
+                    MAX(created_at) as last_seen,
+                    MAX(grad_gs) as max_gs,
+                    payload
+                FROM alerts
+                WHERE created_at >= ?
+                GROUP BY token_address
+                ORDER BY max_gs DESC
+                LIMIT ?
+            """, (cutoff, limit))
+
+            tokens = []
+            for row in cur.fetchall():
+                try:
+                    payload = json.loads(row[3]) if row[3] else {}
+                    tokens.append({
+                        "address": row[0],
+                        "symbol": payload.get("symbol", "UNKNOWN"),
+                        "last_seen": row[1],
+                        "momentum_score": row[2],
+                        "mc": payload.get("mc", 0),
+                        "liquidity": payload.get("liquidity", 0),
+                        "holders": payload.get("holders", 0),
+                        "price": payload.get("price", 0),
+                    })
+                except Exception:
+                    continue
+
+            return {"tokens": tokens, "count": len(tokens)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/wallets")
+async def get_wallets():
+    """Get smart money wallets (placeholder - implement with real wallet data)"""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+
+            # Check if smart_wallets table exists
+            cur.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='smart_wallets'
+            """)
+
+            if cur.fetchone():
+                cur.execute("""
+                    SELECT address, label, tier, avg_trade_size_usd,
+                           pnl_1d, pnl_7d, pnl_30d, win_rate, last_updated
+                    FROM smart_wallets
+                    ORDER BY tier ASC, pnl_7d DESC
+                    LIMIT 20
+                """)
+
+                wallets = []
+                for row in cur.fetchall():
+                    wallets.append({
+                        "address": row[0],
+                        "label": row[1],
+                        "tier": row[2],
+                        "avg_trade_size_usd": row[3],
+                        "pnl_1d": row[4],
+                        "pnl_7d": row[5],
+                        "pnl_30d": row[6],
+                        "win_rate": row[7],
+                        "last_updated": row[8],
+                    })
+
+                return {"wallets": wallets, "count": len(wallets)}
+            else:
+                # Return empty array if table doesn't exist yet
+                return {"wallets": [], "count": 0, "message": "Wallet tracking not initialized"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/positions/active")
+async def get_active_positions():
+    """Get active paper trading positions"""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+
+            # Check if active_positions table exists
+            cur.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='active_positions'
+            """)
+
+            if cur.fetchone():
+                cur.execute("""
+                    SELECT id, signal_id, token_address, symbol,
+                           entry_price, amount_usd, entry_time,
+                           solscan_link, birdeye_link, dexscreener_link
+                    FROM active_positions
+                    WHERE exit_time IS NULL
+                    ORDER BY entry_time DESC
+                """)
+
+                positions = []
+                for row in cur.fetchall():
+                    positions.append({
+                        "id": row[0],
+                        "signal_id": row[1],
+                        "token_address": row[2],
+                        "symbol": row[3],
+                        "entry_price": row[4],
+                        "amount_usd": row[5],
+                        "entry_time": row[6],
+                        "solscan_link": row[7],
+                        "birdeye_link": row[8],
+                        "dexscreener_link": row[9],
+                    })
+
+                return {"positions": positions, "count": len(positions)}
+            else:
+                return {"positions": [], "count": 0, "message": "Position tracking not initialized"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # HEALTH CHECK
 # ============================================================================
 
