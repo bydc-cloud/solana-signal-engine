@@ -123,17 +123,26 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}")
         await websocket_manager.disconnect(websocket)
 
-# Dashboard endpoint - Firecrawl style
+# Mount Lovable dashboard static files
+app.mount("/assets", StaticFiles(directory="lovable_dashboard/dist/assets"), name="assets")
+
+# Dashboard endpoint - Lovable React dashboard
 @app.get("/dashboard")
 async def dashboard():
-    """Serve the modern Firecrawl-style dashboard"""
-    return FileResponse("dashboard/firecrawl-style.html")
+    """Serve the Lovable React dashboard"""
+    return FileResponse("lovable_dashboard/dist/index.html")
 
 # Simple dashboard (legacy)
 @app.get("/dashboard/simple")
 async def dashboard_simple():
     """Serve the simple dashboard"""
     return FileResponse("dashboard/index.html")
+
+# Firecrawl-style dashboard (alternative)
+@app.get("/dashboard/firecrawl")
+async def dashboard_firecrawl():
+    """Serve the Firecrawl-style dashboard"""
+    return FileResponse("dashboard/firecrawl-style.html")
 
 # Mount static files for dashboard assets (if any)
 # app.mount("/dashboard/static", StaticFiles(directory="dashboard/static"), name="dashboard-static")
