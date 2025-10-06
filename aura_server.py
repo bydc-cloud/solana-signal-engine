@@ -129,20 +129,14 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}")
         await websocket_manager.disconnect(websocket)
 
-# Mount Lovable dashboard static files
-app.mount("/assets", StaticFiles(directory="lovable_dashboard/dist/assets"), name="dashboard-assets")
-
-# Dashboard endpoint - serve Lovable dashboard
+# Dashboard endpoint
 @app.get("/dashboard")
 async def dashboard():
-    """Serve the Lovable trading dashboard"""
-    return FileResponse("lovable_dashboard/dist/index.html")
-
-# Simple dashboard endpoint (legacy)
-@app.get("/dashboard-simple")
-async def dashboard_simple():
-    """Serve the simple HTML dashboard"""
+    """Serve the dashboard HTML"""
     return FileResponse("dashboard/index.html")
+
+# Mount static files for dashboard assets (if any)
+# app.mount("/dashboard/static", StaticFiles(directory="dashboard/static"), name="dashboard-static")
 
 # Root endpoint
 @app.get("/")
