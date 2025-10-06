@@ -84,15 +84,31 @@ class AuraTelegramBot:
 
     async def send_signal(self, symbol: str, momentum: float, details: Dict) -> bool:
         """Send trading signal notification"""
+        # Calculate token age if created_at available
+        age_str = ""
+        if details.get('created_at'):
+            from datetime import datetime
+            try:
+                created = datetime.fromisoformat(details['created_at'].replace('Z', '+00:00'))
+                age_hours = (datetime.now() - created).total_seconds() / 3600
+                if age_hours < 24:
+                    age_str = f"\nAge: `{age_hours:.1f}h`"
+                else:
+                    age_days = age_hours / 24
+                    age_str = f"\nAge: `{age_days:.1f}d`"
+            except:
+                pass
+
         message = f"""
 🎯 *New Signal: {symbol}*
 
 Momentum: `{momentum:.1f}`
 Market Cap: `${details.get('mc', 0):,.0f}`
 Liquidity: `${details.get('liquidity', 0):,.0f}`
-Volume Ratio: `{details.get('volume_ratio', 0):.2f}`
+Volume Ratio: `{details.get('volume_ratio', 0):.2f}`{age_str}
 
 [View on Birdeye](https://birdeye.so/token/{details.get('address', '')})
+[View on Dexscreener](https://dexscreener.com/solana/{details.get('address', '')})
 """
         return await self.send_message(message)
 
@@ -224,15 +240,23 @@ Ready to assist 24/7 🚀
             watchlist = db.get_watchlist()
 
             if not watchlist:
-                await update.message.reply_text("👀 Watchlist is empty")
+                await update.message.reply_text("Watchlist is empty")
                 return
 
-            message = f"👀 *Watchlist* ({len(watchlist)} tokens)\n\n"
+            message = f"*Watchlist* ({len(watchlist)} tokens)\n\n"
 
             for item in watchlist[:10]:  # Show top 10
-                message += f"• `{item['symbol']}` - {item['reason']}\n"
+                symbol = item.get('symbol', 'Unknown')
+                address = item.get('token_address', '')
+                reason = item.get('reason', 'No reason')
 
-            await update.message.reply_text(message, parse_mode='Markdown')
+                # Add Dexscreener link
+                dex_link = f"https://dexscreener.com/solana/{address}"
+                message += f"• [{symbol}]({dex_link}) - {reason}\n"
+
+            message += f"\n💡 Click token symbols to view on Dexscreener"
+
+            await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
 
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
