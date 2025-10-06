@@ -60,12 +60,22 @@ MIN_BUYERS_1H = 2  # Lower buyer count
 MAX_DETAIL_CONCURRENCY = 8  # Higher concurrency for faster enrichment
 DETAIL_TIMEOUT_SECONDS = 8  # Longer timeout to avoid failures
 WATCHLIST_COOLDOWN_MINUTES = 15  # Shorter watchlist cooldown
-# Setup logging
+
+# Setup logging with rotation to prevent filling Railway volume
+from logging.handlers import RotatingFileHandler
+
+log_handler = RotatingFileHandler(
+    'momentum_scanner.log',
+    maxBytes=50_000_000,  # 50 MB max per file
+    backupCount=2,  # Keep 2 old files (150 MB total max)
+)
+log_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('momentum_scanner.log'),
+        log_handler,
         logging.StreamHandler()
     ]
 )
