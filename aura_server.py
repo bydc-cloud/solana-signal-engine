@@ -134,14 +134,14 @@ async def dashboard():
 
 # Telegram Webhook Handler
 @app.post("/telegram/webhook")
-async def telegram_webhook(request: dict):
+async def telegram_webhook(update: dict):
     """Handle incoming Telegram messages via webhook"""
     try:
         import os
         import aiohttp
         from aura.database import db
 
-        message = request.get('message', {})
+        message = update.get('message', {})
         if not message:
             return {"ok": True}
 
