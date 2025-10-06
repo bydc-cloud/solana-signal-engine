@@ -1,0 +1,528 @@
+# 🚀 HELIX TRADING BOT - FULL CLOUD DEPLOYMENT WITH LOVABLE
+# Deploy entire autonomous trading system to run 24/7 in the cloud
+
+## 📋 PROJECT OVERVIEW
+
+Build a complete cloud-hosted cryptocurrency momentum trading bot called "Helix" with a web control center dashboard. The system should run 24/7 autonomously, scanning Solana tokens, executing paper trades, and providing real-time monitoring through a beautiful web interface.
+
+## 🎯 WHAT TO BUILD
+
+### PART 1: BACKEND TRADING BOT (Python/FastAPI)
+
+#### Core Trading System:
+- **Momentum Scanner**: Scans 4 Birdeye strategies every 2 minutes:
+  * High Volume tokens
+  * Top Gainers (24h)
+  * Deep Liquidity pools
+  * Micro Cap gems
+
+- **Graduation Detection**: Monitors Pump.fun tokens reaching 80-95% bonding curve completion (ready to "graduate" to Raydium DEX)
+
+- **Multi-Gate Validation System**:
+  * Locker Reputation: Min 0.3 (30% trustworthy lockers)
+  * Sniper Dominance: Max 50% (not too concentrated in early buyers)
+  * Top 10 Holder Concentration: Max 75% (good distribution)
+  * LP Lock Duration: Min 7 days (liquidity locked)
+
+- **Graduation Score (GS)**: 0-100 quality metric with weighted formula:
+  * Progress: 30% (bonding curve completion)
+  * Locker Reputation: 25%
+  * Sniper Check: 20%
+  * Top 10 Distribution: 15%
+  * LP Lock: 10%
+
+- **Trading Execution**:
+  * Paper Trading Mode: $100,000 simulated starting balance
+  * Live Trading Mode: Real SOL wallet integration (optional, off by default)
+  * Kelly Sizing: Position sizing based on win probability and risk/reward
+  * Routes: Jupiter Aggregator & Raydium DEX integration
+
+- **Risk Management**:
+  * Per Trade Cap: 2% of equity max per trade
+  * Global Exposure Cap: 90% max total capital deployed
+  * Max Concurrent Positions: 20 simultaneous trades
+  * Minimum GS Threshold: 35 (configurable, default aggressive for learning)
+
+#### Database Schema (SQLite):
+```sql
+-- Alerts table: All graduation candidates
+CREATE TABLE alerts (
+  id INTEGER PRIMARY KEY,
+  token_address TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  payload TEXT,  -- JSON: {symbol, gs, gates, probs, mode}
+  grad_ev_on_risk REAL,
+  grad_probs TEXT,  -- JSON: {loser, winner, mega}
+  grad_gs REAL,
+  grad_mode TEXT
+);
+
+-- Trades table: Executed trades
+CREATE TABLE trades (
+  id INTEGER PRIMARY KEY,
+  token_address TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  grad_size_fraction REAL,
+  grad_route TEXT,
+  metadata TEXT  -- JSON: {mode, txid, entry_price, current_price, pnl_usd}
+);
+
+-- Equity snapshots
+CREATE TABLE grad_paper_equity (
+  id INTEGER PRIMARY KEY,
+  ts TEXT DEFAULT CURRENT_TIMESTAMP,
+  equity_usd REAL,
+  realized_pnl_usd REAL,
+  unrealized_pnl_usd REAL
+);
+```
+
+#### API Endpoints (FastAPI):
+
+**GET /status**
+```json
+{
+  "scanner_running": true,
+  "scanner_pid": 12345,
+  "mode": "PAPER",
+  "paper_equity": {
+    "total_usd": 100000.00,
+    "realized_pnl": 0.00,
+    "unrealized_pnl": 0.00
+  },
+  "stats_24h": {
+    "trades": 15,
+    "alerts": 45
+  }
+}
+```
+
+**GET /trades?hours=24&mode=PAPER&limit=50**
+**GET /alerts?hours=24&min_gs=35&limit=100**
+**GET /analytics/performance** - Equity history & metrics
+**GET /analytics/daily** - Daily aggregated stats
+**GET /config** - Current configuration
+**POST /config/update** - Update settings
+**POST /scanner/start** - Start bot
+**POST /scanner/stop** - Stop bot
+**POST /scanner/restart** - Restart bot
+**GET /logs?lines=100** - System logs
+
+### PART 2: FRONTEND DASHBOARD (React/TypeScript)
+
+#### Page 1: Dashboard Home (/)
+- **Status Card** (auto-refresh 10s):
+  * Scanner running indicator (pulsing green/red dot)
+  * Mode badge: PAPER (cyan) or LIVE (red warning)
+  * Process ID display
+  * Last updated timestamp
+
+- **Equity Hero Card**:
+  * Total equity (huge font): "$100,000.00"
+  * Realized P&L: "+$250.00" (green) or "-$125.00" (red)
+  * Unrealized P&L: "+$50.00" (open positions)
+  * Progress bar: % change from starting equity
+
+- **24h Stats Grid** (4 cards):
+  * Total trades (with 🔥 if >10)
+  * Total alerts (with 🔔 icon)
+  * Avg GS Score (colored: red <40, yellow 40-70, green >70)
+  * Win rate % (if data available)
+
+- **Control Panel**:
+  * Start Scanner (green button, disabled if running)
+  * Stop Scanner (red button, disabled if stopped)
+  * Restart Scanner (orange button, always enabled)
+  * Toast notifications on success/error
+
+#### Page 2: Trades Table (/trades)
+- **Filters**:
+  * Time tabs: 1h | 6h | 24h | 7d
+  * Mode chips: All | Paper | Live
+
+- **Table Columns**:
+  1. Time (relative: "2h ago")
+  2. Symbol (clickable → Solscan)
+  3. Address (truncated, copy button)
+  4. GS Score (colored number)
+  5. Size % (monospace)
+  6. Mode badge
+  7. Route (Jupiter/Raydium)
+  8. P&L (colored with arrow)
+
+- Pagination: 50 per page
+- Empty state: "No trades yet. Scanner is learning..."
+
+#### Page 3: Alerts Grid (/alerts)
+- **Filters Sidebar**:
+  * Time range slider: 1-168 hours
+  * Min GS slider: 0-100
+  * Traded filter: All | Traded | Not Traded
+
+- **Alert Cards** (3 columns):
+  * Symbol + address (truncated)
+  * Large GS circular progress indicator
+  * Gate badges (4 pills with ✓/✗):
+    - Locker Rep
+    - Sniper Check
+    - Top 10 Check
+    - LP Lock
+  * Timestamp (relative)
+  * "TRADED" banner (if executed)
+  * Click to expand details modal
+
+#### Page 4: Analytics (/analytics)
+- **Equity Chart** (Recharts):
+  * Line chart with gradient fill
+  * Time toggles: 24h | 7d | 30d
+  * Tooltip: equity + P&L at point
+  * Responsive, full width
+
+- **Performance Cards**:
+  * Total Return % (colored, large)
+  * Win Rate (progress circle)
+  * Avg Trade Size (monospace)
+  * Max Drawdown (red)
+
+- **Daily Stats Table**:
+  * Columns: Date | Paper | Live | Alerts | Avg GS | P&L
+  * Sortable, color-coded rows
+  * Trend arrows vs previous day
+
+#### Page 5: Configuration (/config)
+- **Warning Banner**: "⚠️ Config changes require restart"
+
+- **Mode Toggle** (prominent):
+  * PAPER | LIVE radio buttons
+  * LIVE shows red warning
+
+- **Parameter Sliders**:
+  1. Min GS (0-100, current: 35)
+  2. Per Trade Cap (0.001-0.10, current: 0.02)
+  3. Global Exposure Cap (0.1-1.0, current: 0.90)
+  4. Max Concurrent (1-50, current: 20)
+
+- Each slider shows: current value, description, recommended range
+- Save button → POST /config/update
+- Restart button (appears after save)
+
+#### Page 6: System Logs (/logs)
+- **Terminal-style viewer**:
+  * Dark background (#0a0a0f)
+  * Monospace font (JetBrains Mono)
+  * Color-coded levels:
+    - ERROR: #ef4444
+    - WARNING: #f59e0b
+    - INFO: #ffffff
+    - DEBUG: #6b7280
+
+- **Controls**:
+  * Lines selector: 100 | 500 | 1000
+  * Search/filter input
+  * Auto-scroll toggle
+  * Refresh button (also auto-refresh 30s)
+  * Download logs button
+
+### DESIGN SYSTEM (Dark Cyberpunk)
+
+**Colors**:
+```css
+--bg-primary: #0a0a0f
+--bg-surface: #1a1a2e
+--bg-elevated: #2a2a3e
+--border: #3a3a4e
+
+--text-primary: #ffffff
+--text-secondary: #a0a0b0
+--text-muted: #6b7280
+
+--accent-cyan: #00f5ff
+--accent-purple: #b537f2
+--accent-green: #00ff88
+
+--success: #10b981
+--warning: #f59e0b
+--danger: #ef4444
+--info: #3b82f6
+```
+
+**Typography**:
+- Headers: Inter Bold, 24-32px
+- Body: Inter Regular, 14-16px
+- Monospace: JetBrains Mono, 13px
+
+**Components**:
+- Cards: 12px rounded, 1px border, subtle shadow
+- Buttons: 8px rounded, gradient on hover
+- Status indicators: 8px circle, pulsing animation
+- Badges: Fully rounded, 6px padding, uppercase
+- Charts: Gradient fills, 0.3s smooth animations
+
+**Mobile Responsive**:
+- Sidebar → hamburger menu <768px
+- Cards stack vertically
+- Touch-friendly button sizes
+- Simplified charts
+
+## 🔧 TECHNICAL STACK
+
+**Backend**:
+- Python 3.11+
+- FastAPI (REST API framework)
+- SQLite (database)
+- asyncio (async operations)
+- aiohttp (async HTTP client)
+- Solana Web3.py (blockchain interaction)
+- Jupiter API (DEX aggregation)
+
+**Frontend**:
+- React 18 + TypeScript
+- React Router v6 (routing)
+- TanStack Query / React Query (data fetching)
+- Tailwind CSS 3 (styling)
+- shadcn/ui (component library)
+- Recharts 2 (charts)
+- Lucide React (icons)
+- Sonner (toast notifications)
+
+**External APIs**:
+- Birdeye API: Token discovery, price data, volume, holders
+  * Key: `21c8998710ad4def9b1d406981e999ea`
+  * Endpoint: `https://public-api.birdeye.so`
+
+- Helius API: Solana RPC, transaction data, wallet analysis
+  * Key: `a059d453-2bd2-49f0-be07-bc96d9a6857f`
+  * Endpoint: `https://mainnet.helius-rpc.com`
+
+- Pump.fun API: Bonding curve data, graduation tracking
+  * Endpoint: `https://frontend-api.pump.fun`
+  * Note: Rate limited by Cloudflare, use sparingly
+
+- Jupiter API: Token swaps, routing
+  * Endpoint: `https://quote-api.jup.ag/v6`
+
+## ☁️ DEPLOYMENT ARCHITECTURE
+
+### Option A: Lovable + Railway (Recommended)
+
+**Frontend** (Lovable):
+1. Build React dashboard using Lovable AI
+2. Auto-deploys to Lovable Cloud
+3. Gets free subdomain: `helix-bot.lovable.app`
+4. Connect to Railway backend API
+
+**Backend** (Railway):
+1. Deploy Python bot + FastAPI to Railway.app
+2. Add environment variables (API keys, config)
+3. Provision Postgres or keep SQLite (volume mount)
+4. Get Railway URL: `helix-api.up.railway.app`
+5. Update frontend to use Railway URL
+
+**Deployment Steps**:
+```bash
+# 1. Create Railway project
+railway login
+railway init
+railway add
+
+# 2. Add environment variables in Railway dashboard
+BIRDEYE_API_KEY=21c8998710ad4def9b1d406981e999ea
+HELIUS_API_KEY=a059d453-2bd2-49f0-be07-bc96d9a6857f
+GRAD_MODE=PAPER
+GRAD_MIN_SCORE=35
+GRAD_PER_TRADE_CAP=0.02
+GRAD_GLOBAL_EXPOSURE_CAP=0.90
+GRAD_MAX_CONCURRENT=20
+
+# 3. Deploy
+railway up
+
+# 4. Get API URL from Railway dashboard
+# 5. Update Lovable frontend with API URL
+# 6. Deploy Lovable (auto-deploys on save)
+```
+
+**Costs**:
+- Railway: $5/month (Hobby plan, includes 500 hours)
+- Lovable: Free tier (or $20/month Pro for custom domain)
+- **Total**: $5-25/month for 24/7 operation
+
+### Option B: Vercel + Supabase
+
+**Frontend** (Vercel):
+- Deploy React app to Vercel
+- Free tier includes SSL, CDN, auto-deploys
+- Custom domain support
+
+**Backend** (Supabase):
+- Deploy FastAPI to Supabase Edge Functions
+- Use Supabase Postgres for database
+- Built-in auth and real-time features
+
+### Option C: All-in-One (Fly.io)
+
+**Single Deployment**:
+- Deploy backend + frontend to Fly.io
+- Serve React from FastAPI static files
+- Use Fly volumes for persistent SQLite
+- $5-10/month for small VM
+
+**Dockerfile**:
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY . .
+
+# Expose port
+EXPOSE 8000
+
+# Run both scanner and API
+CMD python REALITY_MOMENTUM_SCANNER.py & uvicorn api_server:app --host 0.0.0.0 --port 8000
+```
+
+## 🔐 SECURITY & CONFIGURATION
+
+**Environment Variables** (.env):
+```bash
+# Trading Configuration
+GRAD_MODE=PAPER  # PAPER or LIVE
+GRAD_MIN_SCORE=35  # Minimum graduation score (0-100)
+GRAD_PER_TRADE_CAP=0.02  # 2% max per trade
+GRAD_GLOBAL_EXPOSURE_CAP=0.90  # 90% max total exposure
+GRAD_MAX_CONCURRENT=20  # Max simultaneous positions
+
+# Gate Thresholds (Aggressive Learning Mode)
+GRAD_LOCKER_REP_MIN=0.3  # 30% min locker reputation
+GRAD_SNIPER_PCT_MAX=0.50  # 50% max sniper concentration
+GRAD_TOP10_PCT_MAX=0.75  # 75% max top 10 holders
+GRAD_LP_LOCK_MIN_DAYS=7  # 7 days min LP lock
+
+# API Keys
+BIRDEYE_API_KEY=21c8998710ad4def9b1d406981e999ea
+HELIUS_API_KEY=a059d453-2bd2-49f0-be07-bc96d9a6857f
+
+# Optional: Live Trading (Only if enabling LIVE mode)
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+WALLET_PRIVATE_KEY=YOUR_PRIVATE_KEY_HERE  # DO NOT COMMIT
+```
+
+**Security Best Practices**:
+- Never commit private keys to git
+- Use Railway/Vercel secret management
+- Enable 2FA on all services
+- Start with PAPER mode, test thoroughly
+- Set up alerts for unusual activity
+- Monitor API rate limits
+- Use webhook notifications (Telegram/Discord)
+
+## 📊 MONITORING & ALERTS
+
+**Built-in Dashboard Monitoring**:
+- Real-time equity tracking
+- Trade win rate
+- Alert quality (avg GS)
+- System logs with error highlighting
+
+**Optional External Monitoring**:
+- Telegram Bot: Send trade notifications
+  * Setup: Create bot with @BotFather
+  * Get token and chat ID
+  * Add webhook endpoint: `POST /webhook/telegram`
+
+- Discord Webhook: Post to channel
+  * Create webhook in Discord settings
+  * Add endpoint: `POST /webhook/discord`
+
+- Sentry: Error tracking
+  * Add Sentry DSN to environment
+  * Auto-captures Python exceptions
+
+## 🚀 GETTING STARTED (FOR AI)
+
+When building this in Lovable:
+
+1. **Start with Backend API skeleton**:
+   - Create FastAPI app with all endpoints stubbed
+   - Add CORS middleware for frontend
+   - Connect to SQLite database
+   - Test endpoints return mock data
+
+2. **Build Frontend Dashboard**:
+   - Create 6 pages with routing
+   - Add React Query hooks for all endpoints
+   - Implement dark cyberpunk design system
+   - Add loading states and error handling
+
+3. **Integrate Trading Logic**:
+   - Add Birdeye API integration (token discovery)
+   - Add Helius API integration (transaction data)
+   - Implement graduation detection logic
+   - Add gate validation system
+   - Calculate Graduation Score
+
+4. **Add Trade Execution** (Paper Mode Only):
+   - Simulate trade execution
+   - Track equity in database
+   - Calculate P&L (realized + unrealized)
+   - Update dashboard in real-time
+
+5. **Deploy to Cloud**:
+   - Backend to Railway
+   - Frontend auto-deploys from Lovable
+   - Test live connection
+   - Monitor 24/7 operation
+
+## 🎯 SUCCESS CRITERIA
+
+The bot should:
+- ✅ Run 24/7 without manual intervention
+- ✅ Scan 100+ tokens per day
+- ✅ Generate 20-50 alerts per day (GS > 35)
+- ✅ Execute 5-15 paper trades per day
+- ✅ Log all activity to database
+- ✅ Provide real-time dashboard access from anywhere
+- ✅ Handle API failures gracefully (retry logic)
+- ✅ Restart automatically on crashes
+- ✅ Maintain <2% downtime
+
+## 📝 CURRENT STATUS & LEARNING MODE
+
+**Configuration**: Aggressively tuned for maximum data collection
+- Min GS lowered to 35 (from default 72)
+- Gate thresholds relaxed (locker 0.3, sniper 50%, top10 75%)
+- High concurrency (20 positions, 90% exposure)
+- Goal: 100-300 trades per day for ML training data
+
+**Known Issues**:
+- Helius API occasionally times out (disabled as fallback)
+- Pump.fun blocked by Cloudflare (use Birdeye as primary)
+- Scanner may crash on edge cases (improved error handling added)
+
+**Next Phase** (after data collection):
+- Analyze trade outcomes
+- Optimize GS scoring weights
+- Tighten gate thresholds
+- Reduce false positives
+- Increase win rate from baseline
+
+## 🔗 USEFUL LINKS
+
+- Solscan (block explorer): https://solscan.io/token/{address}
+- Birdeye (token analytics): https://birdeye.so/token/{address}
+- Pump.fun (bonding curves): https://pump.fun/{address}
+- Jupiter (swap interface): https://jup.ag/swap
+- Railway (hosting): https://railway.app
+- Lovable (no-code): https://lovable.dev
+
+---
+
+**FINAL NOTE FOR AI**: This is a complete production-ready trading system. Build it with robust error handling, comprehensive logging, and user-friendly UX. The goal is 24/7 autonomous operation with minimal human intervention. Prioritize reliability over complexity. Start with paper trading only - live trading requires extensive testing and risk disclaimers.
+
+Copy this entire prompt into Lovable and request: "Build this complete cryptocurrency trading bot with cloud deployment. Start with the backend API, then the React dashboard, and guide me through deploying to Railway + Lovable Cloud for 24/7 operation."

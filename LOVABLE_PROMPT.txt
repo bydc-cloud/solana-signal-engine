@@ -1,0 +1,500 @@
+# HELIX TRADING BOT - LOVABLE CONTROL CENTER
+# Full Context Prompt for AI Dashboard Generation
+
+## SYSTEM OVERVIEW
+You are building a control center for "Helix" - an autonomous Solana cryptocurrency momentum trading bot that:
+- Scans 4 Birdeye strategies (High Volume, Top Gainers, Deep Liquidity, Micro Caps) every 2 minutes
+- Detects Pump.fun tokens graduating from bonding curve (80-95% progress)
+- Uses a multi-gate validation system (locker reputation, sniper dominance, top holder concentration, LP lock days)
+- Calculates "Graduation Score" (GS) - weighted quality metric (threshold: 35+)
+- Executes paper trades with $100k simulated balance using Kelly sizing
+- Logs all signals, trades, and equity snapshots to SQLite database (final_nuclear.db)
+- Currently in AGGRESSIVE LEARNING MODE to collect maximum training data (100-300 trades/day target)
+
+## CURRENT BOT STATUS
+- **Mode**: PAPER TRADING (simulated with $100k starting equity)
+- **Scanner**: Running autonomously (PID changes frequently, check /status endpoint)
+- **Database**: final_nuclear.db contains 3 tables:
+  * `alerts` - All graduation candidates with GS scores and gate results
+  * `trades` - Executed paper trades with entry/exit details
+  * `grad_paper_equity` - Equity snapshots (total, realized P&L, unrealized P&L)
+- **Configuration**: Aggressively tuned for learning:
+  * GRAD_MIN_SCORE: 35 (lowered from 72 for more trades)
+  * GRAD_PER_TRADE_CAP: 2% of equity per trade
+  * GRAD_GLOBAL_EXPOSURE_CAP: 90% max total exposure
+  * GRAD_MAX_CONCURRENT: 20 positions
+  * Relaxed gate thresholds (locker rep 0.3, sniper 50%, top10 75%, LP lock 7 days)
+- **Known Issues**:
+  * Helius API disabled due to timeout issues (using Birdeye data only)
+  * Pump.fun polling blocked by Cloudflare (graduation detection limited)
+  * Scanner occasionally dies mid-cycle (improved error handling added)
+
+## BACKEND API DETAILS
+**Base URL**: https://sheeplike-genealogic-emmett.ngrok-free.dev
+**Local URL**: http://localhost:8000 (if running locally)
+**Framework**: FastAPI (auto-docs at /docs)
+**Database**: SQLite via Python sqlite3
+
+### API ENDPOINTS (Detailed Response Schemas)
+
+**GET /status**
+Returns real-time bot status. Poll every 10 seconds on dashboard.
+```json
+{
+  "scanner_running": true,
+  "scanner_pid": 51730,
+  "mode": "PAPER",
+  "paper_equity": {
+    "equity_usd": 100000.00,
+    "realized_pnl_usd": 0.00,
+    "unrealized_pnl_usd": 0.00,
+    "pct_change": 0.00,
+    "last_updated": "2025-10-04T12:34:56"
+  },
+  "stats_24h": {
+    "total_trades": 0,
+    "paper_trades": 0,
+    "live_trades": 0,
+    "total_alerts": 15,
+    "avg_gs": 42.5
+  }
+}
+```
+
+**GET /trades?hours=24&mode=PAPER&limit=50**
+Returns recent trades from database.
+```json
+{
+  "trades": [
+    {
+      "id": 1,
+      "timestamp": "2025-10-04T12:30:00",
+      "symbol": "MOON",
+      "address": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+      "grad_gs": 78.5,
+      "size_pct": 1.8,
+      "mode": "PAPER",
+      "route": "Jupiter",
+      "status": "OPEN",
+      "entry_price": 0.000456,
+      "current_price": 0.000512,
+      "pnl_usd": 112.50
+    }
+  ],
+  "total": 1,
+  "hours": 24
+}
+```
+
+**GET /alerts?hours=24&min_gs=35&limit=100**
+Returns graduation alerts (includes those not traded).
+```json
+{
+  "alerts": [
+    {
+      "id": 1,
+      "timestamp": "2025-10-04T11:45:00",
+      "symbol": "PEPE2",
+      "address": "9xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+      "grad_gs": 42.3,
+      "gate_results": {
+        "locker_rep_passed": true,
+        "sniper_check_passed": true,
+        "top10_check_passed": false,
+        "lp_lock_passed": true
+      },
+      "traded": false,
+      "progress_pct": 87.5
+    }
+  ],
+  "total": 15
+}
+```
+
+**GET /analytics/performance**
+Returns equity history and performance metrics.
+```json
+{
+  "equity_history": [
+    {"timestamp": "2025-10-04T00:00:00", "equity_usd": 100000.00},
+    {"timestamp": "2025-10-04T06:00:00", "equity_usd": 100250.00},
+    {"timestamp": "2025-10-04T12:00:00", "equity_usd": 99875.00}
+  ],
+  "metrics": {
+    "total_return_pct": -0.13,
+    "total_trades": 3,
+    "win_rate": 33.3,
+    "avg_trade_size_pct": 1.9,
+    "max_drawdown_pct": -1.2
+  }
+}
+```
+
+**GET /analytics/daily**
+Returns daily aggregated statistics.
+```json
+{
+  "daily_stats": [
+    {
+      "date": "2025-10-04",
+      "paper_trades": 3,
+      "live_trades": 0,
+      "total_alerts": 15,
+      "avg_gs": 42.5,
+      "daily_pnl": -125.00
+    }
+  ]
+}
+```
+
+**GET /config**
+Returns current configuration from .env.
+```json
+{
+  "mode": "PAPER",
+  "grad_min_score": 35,
+  "grad_per_trade_cap": 0.02,
+  "grad_global_exposure_cap": 0.90,
+  "grad_max_concurrent": 20,
+  "grad_locker_rep_min": 0.3,
+  "grad_sniper_pct_max": 0.50,
+  "grad_top10_pct_max": 0.75,
+  "grad_lp_lock_min_days": 7
+}
+```
+
+**POST /config/update**
+Updates single config parameter (requires scanner restart).
+```json
+// Request body
+{
+  "key": "GRAD_MIN_SCORE",
+  "value": "40"
+}
+
+// Response
+{
+  "success": true,
+  "message": "Updated GRAD_MIN_SCORE to 40. Restart scanner to apply.",
+  "restart_required": true
+}
+```
+
+**POST /scanner/start**
+Starts the scanner (./RUN_AUTONOMOUS.sh).
+```json
+{"success": true, "message": "Scanner started", "pid": 51730}
+```
+
+**POST /scanner/stop**
+Stops the scanner (pkill REALITY_MOMENTUM_SCANNER.py).
+```json
+{"success": true, "message": "Scanner stopped"}
+```
+
+**POST /scanner/restart**
+Stops then starts scanner.
+```json
+{"success": true, "message": "Scanner restarted", "pid": 51800}
+```
+
+**GET /logs?lines=100**
+Returns recent scanner logs from momentum_scanner.log.
+```json
+{
+  "logs": [
+    "[2025-10-04 12:34:56] INFO: Starting momentum scanner...",
+    "[2025-10-04 12:35:01] INFO: Fetched 25 tokens from Birdeye",
+    "[2025-10-04 12:35:03] WARNING: Pump.fun poll failed (530)",
+    "[2025-10-04 12:35:10] INFO: SIGNAL: MOON (7xKXtg...) GS=78.5"
+  ],
+  "total_lines": 100
+}
+```
+
+## DASHBOARD PAGES TO CREATE
+
+### 1. DASHBOARD HOME (/)
+**Purpose**: Real-time overview and quick controls
+
+**Key Features**:
+- **Status Card** (auto-refresh every 10s via GET /status):
+  * Green/red pulsing indicator for scanner_running
+  * Large badge showing mode (PAPER in cyan, LIVE in red with warning icon)
+  * Process ID display (small, monospace font)
+  * Last updated timestamp (relative: "Updated 5s ago")
+
+- **Equity Card** (hero element, large):
+  * Total equity: "$100,000.00" (huge font, white)
+  * Realized P&L: "+$250.00" (green) or "-$125.00" (red) with arrow
+  * Unrealized P&L: "+$50.00" (colored, with "OPEN POSITIONS" label)
+  * Progress bar showing % change from $100k start (gradient green/red)
+
+- **24h Statistics Grid** (4 cards, 2x2):
+  * Total Trades (with fire icon if >10)
+  * Total Alerts (with notification bell icon)
+  * Avg GS Score (colored: red <40, yellow 40-70, green >70)
+  * Win Rate % (if trades > 0, otherwise "N/A")
+
+- **Control Panel** (3 large buttons):
+  * Start Scanner: Green, disabled if already running
+  * Stop Scanner: Red, disabled if not running
+  * Restart Scanner: Orange, always enabled
+  * All show loading spinner during API call, toast notification on success/error
+
+**Layout**: Header → Status Card → Equity Card (full width) → Stats Grid (2x2) → Control Panel (centered buttons)
+
+### 2. TRADES TABLE (/trades)
+**Purpose**: View all executed trades with filtering
+
+**Features**:
+- **Time Filter Tabs** (styled as pills):
+  * 1h | 6h | 24h (default) | 7d
+  * Active tab has cyan glow
+
+- **Mode Filter Chips**:
+  * All (default) | Paper | Live
+  * Shows count badge next to each
+
+- **Table Columns**:
+  1. Time: Relative ("2h ago"), tooltip shows exact timestamp
+  2. Symbol: Bold, clickable → opens Solscan in new tab (https://solscan.io/token/{address})
+  3. Address: Truncated to 8 chars (7xKX...gAsU), copy icon button
+  4. GS Score: Large colored number (red <40, yellow 40-70, green >70), tooltip shows gate breakdown
+  5. Size: "1.8%" (monospace), tooltip shows USD amount
+  6. Mode: Badge (PAPER in cyan, LIVE in red)
+  7. Route: Small text (Jupiter/Raydium)
+  8. P&L: Colored with arrow, "OPEN" if status="OPEN"
+
+- **Pagination**: 50 per page, load more button at bottom
+
+- **Empty State**: "No trades yet. Scanner is learning..." with animated scanner icon
+
+### 3. ALERTS GRID (/alerts)
+**Purpose**: View all graduation signals (traded or not)
+
+**Features**:
+- **Filters Panel** (left sidebar):
+  * Time Range Slider: 1h - 168h (7 days), shows "Last 24 hours"
+  * Min GS Slider: 0-100, default 35, shows "Min Score: 35"
+  * Traded Filter: All | Traded | Not Traded
+
+- **Alert Cards Grid** (3 columns desktop, 1 mobile):
+  * Card Header: Symbol (bold) + truncated address (copy button)
+  * Large GS Display: Circular progress indicator, colored
+  * Gate Badges: 4 small pills (green checkmark or red X):
+    - Locker Rep ✓
+    - Sniper Check ✗
+    - Top 10 Check ✓
+    - LP Lock ✓
+  * Timestamp: Bottom right, relative
+  * "TRADED" banner: Green diagonal ribbon if traded=true
+  * Click card → expands to show full details modal
+
+- **Live Counter**: "Showing 15 alerts" (updates on filter change)
+
+### 4. ANALYTICS (/analytics)
+**Purpose**: Performance visualization and daily stats
+
+**Features**:
+- **Equity Chart** (Recharts LineChart):
+  * X-axis: Time (smart formatting: hours for 24h, dates for 7d+)
+  * Y-axis: USD equity
+  * Line: Gradient stroke (green to red based on trend)
+  * Tooltip: Shows equity + P&L at point
+  * Time Range Toggle: 24h | 7d (default) | 30d
+  * Responsive: Full width on mobile
+
+- **Performance Metrics Cards** (4 cards, horizontal):
+  * Total Return: "+2.5%" (colored, large)
+  * Win Rate: "33.3%" with progress circle
+  * Avg Trade Size: "1.9%" (monospace)
+  * Max Drawdown: "-1.2%" (always red)
+
+- **Daily Stats Table**:
+  * Columns: Date | Paper Trades | Live Trades | Alerts | Avg GS | Daily P&L
+  * Sortable by column
+  * Color coding: Green row if Daily P&L > 0, red if < 0
+  * Trend arrows: Compare to previous day
+
+### 5. CONFIGURATION (/config)
+**Purpose**: Adjust trading parameters (requires restart)
+
+**Features**:
+- **Warning Banner** (top, yellow):
+  * "⚠️ Configuration changes require scanner restart to take effect"
+
+- **Mode Toggle** (hero element):
+  * Large radio buttons: PAPER | LIVE
+  * LIVE shows red warning: "LIVE MODE uses real funds. Proceed with caution."
+
+- **Parameter Sliders** (4 main params):
+  1. Min Graduation Score (0-100, step 1)
+     - Current: 35
+     - Description: "Minimum quality score to execute trade"
+     - Recommended: 40-70
+  2. Per Trade Cap (0.001-0.10, step 0.001)
+     - Current: 0.02 (2%)
+     - Description: "Max % of equity per single trade"
+     - Recommended: 0.01-0.03
+  3. Global Exposure Cap (0.1-1.0, step 0.05)
+     - Current: 0.90 (90%)
+     - Description: "Max % of equity in open positions"
+     - Recommended: 0.50-0.80
+  4. Max Concurrent Positions (1-50, step 1)
+     - Current: 20
+     - Description: "Max number of simultaneous trades"
+     - Recommended: 5-15
+
+- **Save Button**: Primary, calls POST /config/update for each changed param
+
+- **Restart Button**: Appears after save, orange, calls POST /scanner/restart
+
+### 6. SYSTEM LOGS (/logs)
+**Purpose**: Real-time log monitoring
+
+**Features**:
+- **Log Viewer**:
+  * Dark terminal background (#0a0a0f)
+  * Monospace font (JetBrains Mono or Fira Code)
+  * Color coding:
+    - ERROR: #ef4444 (red)
+    - WARNING: #f59e0b (yellow)
+    - INFO: #ffffff (white)
+    - DEBUG: #6b7280 (gray)
+  * Line numbers (gray, right-aligned)
+
+- **Controls Bar** (top):
+  * Lines Dropdown: 100 | 500 | 1000
+  * Search Input: Filter logs by keyword (client-side)
+  * Auto-Scroll Toggle: On by default, scrolls to bottom on new logs
+  * Refresh Button: Manual refresh (also auto-refreshes every 30s)
+
+- **Download Button**: Export logs as .txt file
+
+## DESIGN SYSTEM
+
+### Colors (Dark Cyberpunk Theme)
+```css
+--bg-primary: #0a0a0f;
+--bg-surface: #1a1a2e;
+--bg-elevated: #2a2a3e;
+--border: #3a3a4e;
+--text-primary: #ffffff;
+--text-secondary: #a0a0b0;
+--text-muted: #6b7280;
+
+--accent-cyan: #00f5ff;
+--accent-purple: #b537f2;
+--accent-green: #00ff88;
+
+--success: #10b981;
+--warning: #f59e0b;
+--danger: #ef4444;
+--info: #3b82f6;
+```
+
+### Typography
+- **Headers**: Inter Bold, 24-32px
+- **Body**: Inter Regular, 14-16px
+- **Monospace**: JetBrains Mono, 13px (addresses, numbers, logs)
+
+### Component Styling
+- **Cards**: Rounded 12px, border 1px solid var(--border), subtle shadow
+- **Buttons**: Rounded 8px, 12px padding, gradient on hover
+- **Status Indicators**: 8px circle with 0.5s pulsing animation (opacity 0.5-1.0)
+- **Badges**: Rounded full, 6px padding, uppercase text
+- **Charts**: Gradient fills, smooth 0.3s animations
+
+## TECHNICAL IMPLEMENTATION
+
+### Stack
+- **Frontend**: React 18 + TypeScript
+- **Routing**: React Router v6
+- **State/Data**: TanStack Query (React Query) for API caching
+- **Styling**: Tailwind CSS 3 + shadcn/ui components
+- **Charts**: Recharts 2
+- **Icons**: Lucide React
+- **Notifications**: Sonner (toast library)
+
+### Key Patterns
+1. **Auto-refresh**: Use React Query with refetchInterval (10s for /status, 30s for logs)
+2. **Error Handling**: Try-catch all API calls, show toast on error with user-friendly message
+3. **Loading States**: Show skeleton loaders for cards, spinner for buttons during actions
+4. **Optimistic Updates**: Update UI immediately on config save, revert if API fails
+5. **Mobile Responsive**: Sidebar collapses to hamburger menu <768px
+
+### Example React Query Hook
+```typescript
+const useStatus = () => {
+  return useQuery({
+    queryKey: ['status'],
+    queryFn: async () => {
+      const res = await fetch('https://sheeplike-genealogic-emmett.ngrok-free.dev/status');
+      if (!res.ok) throw new Error('Failed to fetch status');
+      return res.json();
+    },
+    refetchInterval: 10000, // 10 seconds
+    retry: 3,
+  });
+};
+```
+
+### Example Scanner Control
+```typescript
+const stopScanner = useMutation({
+  mutationFn: async () => {
+    const res = await fetch('https://sheeplike-genealogic-emmett.ngrok-free.dev/scanner/stop', {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Failed to stop scanner');
+    return res.json();
+  },
+  onSuccess: () => {
+    toast.success('Scanner stopped successfully');
+    queryClient.invalidateQueries(['status']);
+  },
+  onError: (error) => {
+    toast.error(`Error: ${error.message}`);
+  },
+});
+```
+
+## BUILD INSTRUCTIONS FOR LOVABLE
+
+1. Create a new Lovable project called "Helix Control Center"
+2. Use the prompt above to generate initial dashboard
+3. Ensure all 6 pages are created with proper routing
+4. Test API connection (http://localhost:8000 must be running)
+5. Iterate on styling to match dark cyberpunk aesthetic
+6. Add error boundaries for robustness
+7. Deploy to Lovable Cloud (auto-generated URL)
+
+## GLOSSARY (for AI understanding)
+- **Graduation**: Pump.fun token reaching 80-95% bonding curve progress (ready to migrate to Raydium)
+- **GS (Graduation Score)**: 0-100 quality metric (weighted: progress 30%, locker 25%, sniper 20%, top10 15%, LP lock 10%)
+- **Kelly Sizing**: Position sizing algorithm based on win probability and risk/reward
+- **Paper Trading**: Simulated trading with virtual $100k balance
+- **Birdeye**: Solana token analytics API (price, volume, holders)
+- **Helius**: Solana RPC + enhanced transaction data (currently disabled)
+- **Gate**: Validation check (must pass all to trade: locker rep, sniper dominance, top10 concentration, LP lock)
+- **Solscan**: Solana blockchain explorer (link format: https://solscan.io/token/{address})
+
+## NEXT STEPS AFTER DASHBOARD LAUNCH
+1. Test all endpoints with real scanner running
+2. Monitor dashboard during live trading session
+3. Iterate on UX based on user feedback
+4. Add WebSocket support for real-time trade notifications (future)
+5. Add backtesting interface (future)
+6. Export to production VPS with custom domain (future)
+
+---
+
+**IMPORTANT NOTES FOR LOVABLE**:
+- The API server MUST be running on http://localhost:8000 before testing
+- Use CORS proxy or deploy API to cloud if localhost connection fails
+- All data is read from SQLite database (final_nuclear.db) via FastAPI
+- Scanner runs independently - dashboard just monitors/controls it
+- This is a learning/development bot - optimize for data visibility and insights
+
+Copy this entire prompt into Lovable to generate the full control center dashboard!

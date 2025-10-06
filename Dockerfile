@@ -26,8 +26,9 @@ RUN mkdir -p data
 # Expose port (Railway sets $PORT env var)
 EXPOSE ${PORT:-8000}
 
-# Start both API server and scanner using a startup script
-CMD python init_db.py && \
-    uvicorn api_server:app --host 0.0.0.0 --port ${PORT:-8000} & \
-    python REALITY_MOMENTUM_SCANNER.py & \
+# Start AURA unified server and scanner
+CMD python3 init_db.py && \
+    python3 init_aura_db.py && \
+    uvicorn aura_server:app --host 0.0.0.0 --port ${PORT:-8000} & \
+    python3 REALITY_MOMENTUM_SCANNER.py & \
     wait
