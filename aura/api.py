@@ -556,3 +556,36 @@ async def get_stats():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# CHAT INTERFACE
+# ═══════════════════════════════════════════════════════════
+
+class ChatQuery(BaseModel):
+    query: str
+
+@router.post("/chat")
+async def chat_query(chat: ChatQuery):
+    """Natural language query interface"""
+    try:
+        from .chat import chat as chat_engine
+        response = chat_engine.process_query(chat.query)
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/chat/suggestions")
+async def chat_suggestions():
+    """Get smart chat suggestions"""
+    return {
+        "suggestions": [
+            "Show me my portfolio",
+            "What's in my watchlist?",
+            "Show recent signals",
+            "How are my strategies performing?",
+            "Give me system stats",
+            "What tokens should I watch?",
+        ]
+    }
