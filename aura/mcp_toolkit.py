@@ -409,6 +409,9 @@ class Context7MCP:
 # Singleton toolkit instance
 mcp_toolkit = MCPToolkit()
 
+# Export availability flag
+MCP_TOOLKIT_AVAILABLE = True
+
 
 # Convenience functions for AURA to call
 async def get_token_price(symbol: str) -> float:

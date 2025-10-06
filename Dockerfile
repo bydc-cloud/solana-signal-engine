@@ -32,4 +32,5 @@ CMD python3 init_db.py && \
     uvicorn aura_server:app --host 0.0.0.0 --port ${PORT:-8000} & \
     python3 REALITY_MOMENTUM_SCANNER.py & \
     python3 aura_worker.py & \
+    python3 ingestion_worker.py & \
     wait
