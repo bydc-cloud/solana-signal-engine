@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-DATABASE_PATH = "data/helix_production.db"
+DATABASE_PATH = "data/aura.db"  # Use AURA database
 MIGRATIONS_DIR = "db/migrations"
 
 
