@@ -1,0 +1,124 @@
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "description": "Knowledge graph for storing entities, relations, and observations"
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@context7/mcp-server"],
+      "description": "Library documentation lookup for programming"
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "description": "Browser automation for web scraping with JavaScript rendering"
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "description": "Chain-of-thought reasoning for complex problem solving"
+    },
+    "telegram": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/telegram",
+      "transport": {
+        "type": "sse"
+      },
+      "env": {
+        "TELEGRAM_BOT_TOKEN": "${TELEGRAM_BOT_TOKEN}",
+        "TELEGRAM_CHAT_ID": "${TELEGRAM_CHAT_ID}"
+      },
+      "description": "Telegram bot integration for sending messages and alerts"
+    },
+    "database": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/database",
+      "transport": {
+        "type": "sse"
+      },
+      "env": {
+        "DATABASE_URL": "${DATABASE_URL}"
+      },
+      "description": "PostgreSQL/SQLite database for tokens, trades, alerts, configs"
+    },
+    "coingecko": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/coingecko",
+      "transport": {
+        "type": "sse"
+      },
+      "env": {
+        "COINGECKO_API_KEY": "${COINGECKO_API_KEY}"
+      },
+      "description": "CoinGecko API for cryptocurrency market data, prices, trending tokens"
+    },
+    "firecrawl": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/firecrawl",
+      "transport": {
+        "type": "sse"
+      },
+      "env": {
+        "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"
+      },
+      "description": "Firecrawl web scraping for extracting structured data from websites"
+    },
+    "helius": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/helius",
+      "transport": {
+        "type": "sse"
+      },
+      "env": {
+        "HELIUS_API_KEY": "${HELIUS_API_KEY}"
+      },
+      "description": "Helius Solana RPC for wallet tracking, transaction analysis"
+    },
+    "birdeye": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/birdeye",
+      "transport": {
+        "type": "sse"
+      },
+      "env": {
+        "BIRDEYE_API_KEY": "${BIRDEYE_API_KEY}"
+      },
+      "description": "Birdeye DEX data for token prices, OHLC, liquidity, volume"
+    },
+    "defillama": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/defillama",
+      "transport": {
+        "type": "sse"
+      },
+      "description": "DeFiLlama API for TVL, protocol data (no auth required)"
+    },
+    "viz": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/viz",
+      "transport": {
+        "type": "sse"
+      },
+      "description": "Chart generation and visualization for trading data"
+    },
+    "config": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/config",
+      "transport": {
+        "type": "sse"
+      },
+      "description": "Configuration management with versioning and rollback"
+    },
+    "deploy": {
+      "url": "https://signal-railway-deployment-production.up.railway.app/mcp/deploy",
+      "transport": {
+        "type": "sse"
+      },
+      "env": {
+        "RAILWAY_TOKEN": "${RAILWAY_TOKEN}"
+      },
+      "description": "Railway deployment triggers for CI/CD"
+    },
+    "repo": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "description": "GitHub repository management for PRs, branches, commits"
+    }
+  }
+}

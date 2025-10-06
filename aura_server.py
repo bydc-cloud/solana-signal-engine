@@ -18,6 +18,9 @@ from api_server import get_status, get_alerts, get_logs
 from aura.api import router as aura_router
 from aura.websocket_manager import websocket_manager
 
+# Import Dashboard API routes
+from dashboard_api import router as dashboard_router
+
 # Create unified app
 app = FastAPI(
     title="AURA - Autonomous Crypto Intelligence",
@@ -52,7 +55,10 @@ async def logs(limit: int = 100):
     return await get_logs(limit)
 
 # Mount AURA routes under /api prefix
-app.include_router(aura_router, prefix="/api", tags=["AURA"])
+app.include_router(aura_router, prefix="/api/aura", tags=["AURA"])
+
+# Mount Dashboard API routes under /api prefix
+app.include_router(dashboard_router, tags=["Dashboard"])
 
 # Unified health check
 @app.get("/health")

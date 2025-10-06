@@ -144,6 +144,13 @@ Closed Trades: `{summary['closed_positions']}`
             self.application.add_handler(CommandHandler("strategies", self.cmd_strategies))
             self.application.add_handler(CommandHandler("help", self.cmd_help))
 
+            # Add new router commands
+            self.application.add_handler(CommandHandler("prompt", self.cmd_prompt))
+            self.application.add_handler(CommandHandler("panel", self.cmd_panel))
+            self.application.add_handler(CommandHandler("approve", self.cmd_approve))
+            self.application.add_handler(CommandHandler("report", self.cmd_report))
+            self.application.add_handler(CommandHandler("scan", self.cmd_scan))
+
             # Start bot in background
             asyncio.create_task(self.application.run_polling())
             logger.info("✅ Telegram command handlers registered")
@@ -262,18 +269,43 @@ Closed Trades: `{summary['closed_positions']}`
 
     async def cmd_help(self, update, context):
         """Handle /help command"""
-        message = """🤖 *AURA Bot Commands*
+        from telegram_command_router import telegram_router
+        response = await telegram_router.handle_help("")
+        await update.message.reply_text(response, parse_mode='Markdown')
 
-/portfolio - View portfolio summary
-/watchlist - Show watchlist
-/signals - Recent signals (24h)
-/stats - System statistics
-/strategies - Active strategies
-/help - Show this help
+    async def cmd_prompt(self, update, context):
+        """Handle /prompt command"""
+        from telegram_command_router import telegram_router
+        text = " ".join(context.args) if context.args else ""
+        response = await telegram_router.route_command("prompt", text)
+        await update.message.reply_text(response, parse_mode='Markdown')
 
-Bot is running autonomously 24/7 🚀
-"""
-        await update.message.reply_text(message, parse_mode='Markdown')
+    async def cmd_panel(self, update, context):
+        """Handle /panel command"""
+        from telegram_command_router import telegram_router
+        args = " ".join(context.args) if context.args else ""
+        response = await telegram_router.route_command("panel", args)
+        await update.message.reply_text(response, parse_mode='Markdown')
+
+    async def cmd_approve(self, update, context):
+        """Handle /approve command"""
+        from telegram_command_router import telegram_router
+        args = " ".join(context.args) if context.args else ""
+        response = await telegram_router.route_command("approve", args)
+        await update.message.reply_text(response, parse_mode='Markdown')
+
+    async def cmd_report(self, update, context):
+        """Handle /report command"""
+        from telegram_command_router import telegram_router
+        args = " ".join(context.args) if context.args else "today"
+        response = await telegram_router.route_command("report", args)
+        await update.message.reply_text(response, parse_mode='Markdown')
+
+    async def cmd_scan(self, update, context):
+        """Handle /scan command"""
+        from telegram_command_router import telegram_router
+        response = await telegram_router.route_command("scan", "")
+        await update.message.reply_text(response, parse_mode='Markdown')
 
 
 # Singleton
