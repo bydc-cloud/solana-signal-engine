@@ -37,7 +37,7 @@ SCAN_STRATEGIES = [
 ]
 
 # Scanner tuning - AGGRESSIVE SIGNAL MODE - maximize signal generation
-DEFAULT_SIGNAL_THRESHOLD = 25  # Lower threshold for more signals
+DEFAULT_SIGNAL_THRESHOLD = 20  # Lower threshold for more signals
 DEFAULT_DUPLICATE_COOLDOWN_MINUTES = 30  # Shorter cooldown for faster re-evaluation
 MAX_TOKENS_PER_SCAN = 300  # Process more tokens per scan
 
@@ -1037,8 +1037,8 @@ class RealityMomentumScanner:
             validation_result['buyer_dominance'] = buyer_dominance
             validation_result['is_valid'] = (
                 validation_result['risk_score'] < 75
-                and validation_result['volume_quality'] >= 15
-                and validation_result['momentum_score'] >= 20
+                and validation_result['volume_quality'] >= 12
+                and validation_result['momentum_score'] >= 18
             )
 
             return validation_result
@@ -1235,7 +1235,7 @@ class RealityMomentumScanner:
                     guard_stats['low_dominance_buyers'] = guard_stats.get('low_dominance_buyers', 0) + 1
                 return (False, 'low_dominance_buyers')
 
-            if momentum < 25:
+            if momentum < 20:
                 if guard_stats is not None:
                     guard_stats['low_momentum'] = guard_stats.get('low_momentum', 0) + 1
                 return (False, 'low_momentum')
@@ -1250,7 +1250,7 @@ class RealityMomentumScanner:
                     guard_stats['insufficient_buyers'] = guard_stats.get('insufficient_buyers', 0) + 1
                 return (False, 'insufficient_buyers')
 
-            if helius_buy_usd and helius_buy_usd < 200:
+            if helius_buy_usd and helius_buy_usd < 150:
                 if guard_stats is not None:
                     guard_stats['low_helius_volume'] = guard_stats.get('low_helius_volume', 0) + 1
                 return (False, 'low_helius_volume')

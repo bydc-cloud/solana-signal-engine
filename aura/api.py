@@ -589,3 +589,196 @@ async def chat_suggestions():
             "What tokens should I watch?",
         ]
     }
+
+# ═══════════════════════════════════════════════════════════
+# GOVERNANCE ENDPOINTS
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/governance/proposals")
+async def get_proposals():
+    """Get all active governance proposals"""
+    try:
+        from .governance import governance
+        proposals = governance.get_active_proposals()
+        return {"proposals": proposals}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/governance/proposals/{proposal_id}")
+async def get_proposal(proposal_id: int):
+    """Get proposal details and voting results"""
+    try:
+        from .governance import governance
+        proposal = governance.get_proposal(proposal_id)
+        if not proposal:
+            raise HTTPException(status_code=404, detail="Proposal not found")
+
+        results = governance.get_voting_results(proposal_id)
+
+        return {
+            "proposal": proposal,
+            "voting_results": results,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/governance/proposals")
+async def create_proposal(
+    title: str,
+    description: str,
+    proposal_type: str,
+    proposed_changes: Dict,
+    user_id: int = 1,
+):
+    """Create a new governance proposal"""
+    try:
+        from .governance import governance
+        proposal_id = governance.create_proposal(
+            title, description, proposal_type, proposed_changes, user_id
+        )
+        return {"proposal_id": proposal_id, "status": "created"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/governance/proposals/{proposal_id}/vote")
+async def vote_on_proposal(proposal_id: int, vote: str, user_id: int = 1):
+    """Cast a vote on a proposal"""
+    try:
+        from .governance import governance
+        success = governance.cast_vote(proposal_id, user_id, vote)
+        return {"success": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# SENTIMENT ANALYSIS ENDPOINTS
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/sentiment/{address}")
+async def get_token_sentiment(address: str):
+    """Get sentiment analysis for a token"""
+    try:
+        from .sentiment import sentiment_analyzer
+        token = db.get_token(address)
+        if not token:
+            raise HTTPException(status_code=404, detail="Token not found")
+
+        sentiment = await sentiment_analyzer.analyze_token_sentiment(
+            address, token["symbol"]
+        )
+        return sentiment
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sentiment/trending")
+async def get_trending_tokens():
+    """Get tokens trending on social media"""
+    try:
+        from .sentiment import sentiment_analyzer
+        trending = await sentiment_analyzer.get_trending_tokens()
+        return {"trending": trending}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# WHALE TRACKING ENDPOINTS
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/whales/signals")
+async def get_whale_signals():
+    """Get current whale copy trading signals"""
+    try:
+        from .whale_tracker import whale_tracker
+        signals = await whale_tracker.get_whale_copy_signals()
+        return {"signals": signals}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/whales/{whale_address}/activity")
+async def get_whale_activity(whale_address: str):
+    """Get recent trading activity for a whale wallet"""
+    try:
+        from .whale_tracker import whale_tracker
+        activity = await whale_tracker.track_whale_activity(whale_address)
+        return {"whale_address": whale_address, "activity": activity}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/whales/{address}/is-buying")
+async def check_whale_buying(address: str):
+    """Check if whales are buying a specific token"""
+    try:
+        from .whale_tracker import whale_tracker
+        is_buying = whale_tracker.is_whale_buying(address)
+        return {"token_address": address, "whales_buying": is_buying}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# ANALYTICS ENDPOINTS
+# ═══════════════════════════════════════════════════════════
+
+@router.post("/analytics/backtest/{strategy_id}")
+async def backtest_strategy(
+    strategy_id: int,
+    start_date: str,
+    end_date: str,
+    initial_capital: float = 10000,
+):
+    """Backtest a strategy on historical data"""
+    try:
+        from .analytics import analytics
+        from datetime import datetime
+
+        start = datetime.fromisoformat(start_date)
+        end = datetime.fromisoformat(end_date)
+
+        results = analytics.backtest_strategy(strategy_id, start, end, initial_capital)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/analytics/monte-carlo/{strategy_id}")
+async def monte_carlo_simulation(
+    strategy_id: int, num_simulations: int = 1000, initial_capital: float = 10000
+):
+    """Run Monte Carlo simulation on strategy"""
+    try:
+        from .analytics import analytics
+
+        results = analytics.monte_carlo_simulation(
+            strategy_id, num_simulations, initial_capital
+        )
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/metrics/{strategy_id}")
+async def get_strategy_metrics(strategy_id: int):
+    """Get risk-adjusted metrics for a strategy"""
+    try:
+        from .analytics import analytics
+
+        sharpe = analytics.calculate_sharpe_ratio(strategy_id)
+        sortino = analytics.calculate_sortino_ratio(strategy_id)
+        max_dd = analytics.calculate_max_drawdown(strategy_id)
+
+        return {
+            "strategy_id": strategy_id,
+            "sharpe_ratio": sharpe,
+            "sortino_ratio": sortino,
+            "max_drawdown": max_dd,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
