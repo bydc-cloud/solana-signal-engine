@@ -35,4 +35,4 @@ CMD uvicorn api_server:app --host 0.0.0.0 --port ${PORT:-8000} & \
     python -m graduation.exit_engine & \
     python -m graduation.twitter_monitor & \
     python WALLET_SIGNAL_SCANNER.py & \
-    wait -n
+    wait
