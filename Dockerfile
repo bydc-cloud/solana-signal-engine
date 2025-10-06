@@ -27,6 +27,7 @@ RUN mkdir -p data
 EXPOSE ${PORT:-8000}
 
 # Start both API server and scanner using a startup script
-CMD uvicorn api_server:app --host 0.0.0.0 --port ${PORT:-8000} & \
+CMD python init_db.py && \
+    uvicorn api_server:app --host 0.0.0.0 --port ${PORT:-8000} & \
     python REALITY_MOMENTUM_SCANNER.py & \
     wait
