@@ -1,0 +1,118 @@
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "description": "Knowledge graph for storing entities, relations, and observations about tokens, strategies, and market data"
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@context7/mcp-server"],
+      "description": "Library documentation lookup for programming libraries and frameworks"
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "description": "Browser automation for web scraping with JavaScript rendering (Twitter, Telegram, DexScreener)"
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "description": "Chain-of-thought reasoning for complex problem solving and decision making"
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "description": "GitHub repository management for PRs, branches, commits, and code reviews"
+    },
+    "aura-telegram": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const { Server } = require('@modelcontextprotocol/sdk/server/index.js'); const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js'); const axios = require('axios'); const server = new Server({ name: 'aura-telegram', version: '1.0.0' }, { capabilities: { tools: {} } }); server.setRequestHandler('tools/list', async () => ({ tools: [{ name: 'send_message', description: 'Send message to Telegram', inputSchema: { type: 'object', properties: { text: { type: 'string' }, chat_id: { type: 'string' } }, required: ['text'] } }] })); server.setRequestHandler('tools/call', async (request) => { if (request.params.name === 'send_message') { const { text, chat_id } = request.params.arguments; const token = process.env.TELEGRAM_BOT_TOKEN; const chatId = chat_id || process.env.TELEGRAM_CHAT_ID; await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, { chat_id: chatId, text, parse_mode: 'Markdown' }); return { content: [{ type: 'text', text: 'Message sent' }] }; } }); const transport = new StdioServerTransport(); server.connect(transport);"
+      ],
+      "env": {
+        "TELEGRAM_BOT_TOKEN": "${TELEGRAM_BOT_TOKEN}",
+        "TELEGRAM_CHAT_ID": "${TELEGRAM_CHAT_ID}"
+      },
+      "description": "Telegram bot integration for sending messages, alerts, and trading signals"
+    },
+    "aura-database": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const { Server } = require('@modelcontextprotocol/sdk/server/index.js'); const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js'); const sqlite3 = require('sqlite3'); const db = new sqlite3.Database(process.env.DATABASE_PATH || './data/helix_production.db'); const server = new Server({ name: 'aura-database', version: '1.0.0' }, { capabilities: { tools: {} } }); server.setRequestHandler('tools/list', async () => ({ tools: [{ name: 'query', description: 'Execute SQL query', inputSchema: { type: 'object', properties: { sql: { type: 'string' } }, required: ['sql'] } }] })); server.setRequestHandler('tools/call', async (request) => { if (request.params.name === 'query') { const { sql } = request.params.arguments; return new Promise((resolve, reject) => { db.all(sql, [], (err, rows) => { if (err) reject(err); else resolve({ content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] }); }); }); } }); const transport = new StdioServerTransport(); server.connect(transport);"
+      ],
+      "env": {
+        "DATABASE_PATH": "${DATABASE_PATH}"
+      },
+      "description": "SQLite database access for tokens, trades, alerts, and configs"
+    },
+    "aura-coingecko": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const { Server } = require('@modelcontextprotocol/sdk/server/index.js'); const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js'); const axios = require('axios'); const server = new Server({ name: 'aura-coingecko', version: '1.0.0' }, { capabilities: { tools: {} } }); const BASE_URL = 'https://api.coingecko.com/api/v3'; const headers = process.env.COINGECKO_API_KEY ? { 'x-cg-pro-api-key': process.env.COINGECKO_API_KEY } : {}; server.setRequestHandler('tools/list', async () => ({ tools: [{ name: 'get_price', description: 'Get token price', inputSchema: { type: 'object', properties: { coin_id: { type: 'string' } }, required: ['coin_id'] } }, { name: 'get_trending', description: 'Get trending tokens', inputSchema: { type: 'object', properties: {} } }] })); server.setRequestHandler('tools/call', async (request) => { if (request.params.name === 'get_price') { const { coin_id } = request.params.arguments; const res = await axios.get(`${BASE_URL}/simple/price?ids=${coin_id}&vs_currencies=usd&include_market_cap=true`, { headers }); return { content: [{ type: 'text', text: JSON.stringify(res.data) }] }; } if (request.params.name === 'get_trending') { const res = await axios.get(`${BASE_URL}/search/trending`, { headers }); return { content: [{ type: 'text', text: JSON.stringify(res.data.coins.slice(0, 7)) }] }; } }); const transport = new StdioServerTransport(); server.connect(transport);"
+      ],
+      "env": {
+        "COINGECKO_API_KEY": "${COINGECKO_API_KEY}"
+      },
+      "description": "CoinGecko API for cryptocurrency market data, prices, and trending tokens"
+    },
+    "aura-firecrawl": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const { Server } = require('@modelcontextprotocol/sdk/server/index.js'); const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js'); const axios = require('axios'); const server = new Server({ name: 'aura-firecrawl', version: '1.0.0' }, { capabilities: { tools: {} } }); const BASE_URL = 'https://api.firecrawl.dev/v0'; const headers = { 'Authorization': `Bearer ${process.env.FIRECRAWL_API_KEY}` }; server.setRequestHandler('tools/list', async () => ({ tools: [{ name: 'scrape_url', description: 'Scrape webpage', inputSchema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] } }] })); server.setRequestHandler('tools/call', async (request) => { if (request.params.name === 'scrape_url') { const { url } = request.params.arguments; const res = await axios.post(`${BASE_URL}/scrape`, { url, formats: ['markdown'] }, { headers }); return { content: [{ type: 'text', text: res.data.data.markdown }] }; } }); const transport = new StdioServerTransport(); server.connect(transport);"
+      ],
+      "env": {
+        "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"
+      },
+      "description": "Firecrawl web scraping for extracting structured data from websites (Birdeye, DexScreener, etc.)"
+    },
+    "aura-helius": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const { Server } = require('@modelcontextprotocol/sdk/server/index.js'); const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js'); const axios = require('axios'); const server = new Server({ name: 'aura-helius', version: '1.0.0' }, { capabilities: { tools: {} } }); const BASE_URL = `https://api.helius.xyz/v0`; const API_KEY = process.env.HELIUS_API_KEY; server.setRequestHandler('tools/list', async () => ({ tools: [{ name: 'get_transactions', description: 'Get wallet transactions', inputSchema: { type: 'object', properties: { address: { type: 'string' } }, required: ['address'] } }] })); server.setRequestHandler('tools/call', async (request) => { if (request.params.name === 'get_transactions') { const { address } = request.params.arguments; const res = await axios.get(`${BASE_URL}/addresses/${address}/transactions?api-key=${API_KEY}`); return { content: [{ type: 'text', text: JSON.stringify(res.data.transactions.slice(0, 10)) }] }; } }); const transport = new StdioServerTransport(); server.connect(transport);"
+      ],
+      "env": {
+        "HELIUS_API_KEY": "${HELIUS_API_KEY}"
+      },
+      "description": "Helius Solana RPC for wallet tracking, transaction analysis, and whale monitoring"
+    },
+    "aura-birdeye": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const { Server } = require('@modelcontextprotocol/sdk/server/index.js'); const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js'); const axios = require('axios'); const server = new Server({ name: 'aura-birdeye', version: '1.0.0' }, { capabilities: { tools: {} } }); const BASE_URL = 'https://public-api.birdeye.so'; const headers = { 'X-API-KEY': process.env.BIRDEYE_API_KEY }; server.setRequestHandler('tools/list', async () => ({ tools: [{ name: 'get_ohlcv', description: 'Get OHLC data', inputSchema: { type: 'object', properties: { address: { type: 'string' }, timeframe: { type: 'string' } }, required: ['address', 'timeframe'] } }] })); server.setRequestHandler('tools/call', async (request) => { if (request.params.name === 'get_ohlcv') { const { address, timeframe } = request.params.arguments; const res = await axios.get(`${BASE_URL}/defi/ohlcv?address=${address}&type=${timeframe}`, { headers }); return { content: [{ type: 'text', text: JSON.stringify(res.data.data.items.slice(0, 100)) }] }; } }); const transport = new StdioServerTransport(); server.connect(transport);"
+      ],
+      "env": {
+        "BIRDEYE_API_KEY": "${BIRDEYE_API_KEY}"
+      },
+      "description": "Birdeye DEX data for token prices, OHLC candles, liquidity, and volume"
+    },
+    "aura-defillama": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const { Server } = require('@modelcontextprotocol/sdk/server/index.js'); const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js'); const axios = require('axios'); const server = new Server({ name: 'aura-defillama', version: '1.0.0' }, { capabilities: { tools: {} } }); const BASE_URL = 'https://api.llama.fi'; server.setRequestHandler('tools/list', async () => ({ tools: [{ name: 'get_tvl', description: 'Get protocol TVL', inputSchema: { type: 'object', properties: { protocol: { type: 'string' } }, required: ['protocol'] } }] })); server.setRequestHandler('tools/call', async (request) => { if (request.params.name === 'get_tvl') { const { protocol } = request.params.arguments; const res = await axios.get(`${BASE_URL}/protocol/${protocol}`); return { content: [{ type: 'text', text: JSON.stringify({ tvl: res.data.tvl, chainTvls: res.data.chainTvls }) }] }; } }); const transport = new StdioServerTransport(); server.connect(transport);"
+      ],
+      "description": "DeFiLlama API for TVL, protocol data, and DeFi analytics (no auth required)"
+    },
+    "aura-config": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const { Server } = require('@modelcontextprotocol/sdk/server/index.js'); const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js'); const sqlite3 = require('sqlite3'); const db = new sqlite3.Database(process.env.DATABASE_PATH || './data/helix_production.db'); const server = new Server({ name: 'aura-config', version: '1.0.0' }, { capabilities: { tools: {} } }); server.setRequestHandler('tools/list', async () => ({ tools: [{ name: 'get_config', description: 'Get config value', inputSchema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] } }, { name: 'propose_patch', description: 'Propose config change', inputSchema: { type: 'object', properties: { key: { type: 'string' }, value: { type: 'string' } }, required: ['key', 'value'] } }] })); server.setRequestHandler('tools/call', async (request) => { if (request.params.name === 'get_config') { const { key } = request.params.arguments; return new Promise((resolve) => { db.get('SELECT value FROM configs WHERE key = ?', [key], (err, row) => { resolve({ content: [{ type: 'text', text: row ? row.value : null }] }); }); }); } if (request.params.name === 'propose_patch') { const { key, value } = request.params.arguments; return new Promise((resolve) => { db.get('SELECT value FROM configs WHERE key = ?', [key], (err, row) => { const old_value = row ? row.value : null; db.run('INSERT INTO config_patches (config_key, old_value, new_value, applied) VALUES (?, ?, ?, 0)', [key, old_value, value], function() { resolve({ content: [{ type: 'text', text: `Patch ${this.lastID} created. Use /approve ${this.lastID} to apply.` }] }); }); }); }); } }); const transport = new StdioServerTransport(); server.connect(transport);"
+      ],
+      "env": {
+        "DATABASE_PATH": "${DATABASE_PATH}"
+      },
+      "description": "Configuration management with versioning, rollback, and approval workflow"
+    }
+  }
+}
