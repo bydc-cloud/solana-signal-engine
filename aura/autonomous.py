@@ -28,6 +28,15 @@ class AutonomousEngine:
         self.crypto_mcp = crypto_mcp
         self.last_processed_signal_id = 0
 
+        # Import Telegram bot
+        try:
+            from .telegram_bot import telegram_bot
+            self.telegram = telegram_bot
+            logger.info("Telegram bot integrated with autonomous engine")
+        except Exception as e:
+            self.telegram = None
+            logger.warning(f"Telegram bot not available: {e}")
+
     # ═══════════════════════════════════════════════════════════
     # SIGNAL MONITORING
     # ═══════════════════════════════════════════════════════════
