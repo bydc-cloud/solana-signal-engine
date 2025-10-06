@@ -110,7 +110,7 @@ async def get_portfolio():
             closed_positions=summary["closed_positions"],
             open_value_usd=summary["open_value_usd"],
             total_pnl_usd=summary["total_pnl_usd"],
-            total_pnl_percent=summary["total_pnl_percent"],
+            total_pnl_percent=summary.get("avg_pnl_percent", 0),  # Use avg_pnl_percent from DB
             win_rate=summary["win_rate"],
             best_performer=best,
             worst_performer=worst,
@@ -118,7 +118,7 @@ async def get_portfolio():
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Portfolio error: {e}")
+        raise HTTPException(status_code=500, detail=f"Portfolio error: {str(e)}")
 
 
 @router.get("/watchlist", response_model=WatchlistResponse)
