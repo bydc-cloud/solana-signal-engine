@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-DATABASE_PATH = "data/aura.db"  # Use AURA database
+DATABASE_PATH = "aura.db"  # AURA database in project root
 MIGRATIONS_DIR = "db/migrations"
 
 
