@@ -132,6 +132,52 @@ async def dashboard():
 # Mount static files for dashboard assets (if any)
 # app.mount("/dashboard/static", StaticFiles(directory="dashboard/static"), name="dashboard-static")
 
+# Telegram Webhook Handler
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: dict):
+    """Handle incoming Telegram messages via webhook"""
+    try:
+        import os
+        import aiohttp
+        from aura.database import db
+
+        message = request.get('message', {})
+        if not message:
+            return {"ok": True}
+
+        chat_id = message.get('chat', {}).get('id')
+        text = message.get('text', '')
+
+        if not text or not chat_id:
+            return {"ok": True}
+
+        logger.info(f"📱 Telegram message from {chat_id}: {text}")
+
+        # Simple command handling
+        response_text = ""
+        if text.startswith('/start'):
+            response_text = "🤖 *AURA Bot Online!*\n\nSend `/portfolio` or `/signals` or just ask: how's my portfolio?"
+        elif text.startswith('/portfolio'):
+            summary = db.get_portfolio_summary()
+            response_text = f"💼 Portfolio: {summary['open_positions']} open | P&L: ${summary['total_pnl_usd']:.2f} | Win rate: {summary['win_rate']:.1f}%"
+        elif text.startswith('/signals'):
+            signals = db.get_recent_helix_signals(hours=24, limit=5)
+            response_text = f"📡 {len(signals)} signals in last 24h"
+        else:
+            response_text = f"🤖 Got it: {text}\n\nTry /portfolio or /signals"
+
+        # Send response
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if bot_token and response_text:
+            async with aiohttp.ClientSession() as session:
+                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                await session.post(url, json={"chat_id": chat_id, "text": response_text, "parse_mode": "Markdown"})
+
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return {"ok": False}
+
 # Root endpoint
 @app.get("/")
 async def root():
