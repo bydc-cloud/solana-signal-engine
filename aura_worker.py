@@ -98,10 +98,28 @@ async def async_worker_cycle(cycle_count: int):
         await analyze_sentiment()
 
 
+async def setup_telegram_bot():
+    """Setup Telegram bot command handlers"""
+    try:
+        from aura.telegram_bot import telegram_bot
+
+        if telegram_bot.enabled:
+            await telegram_bot.setup_commands()
+            logger.info("✅ Telegram bot command handlers setup complete")
+    except Exception as e:
+        logger.error(f"Telegram bot setup error: {e}")
+
+
 def main():
     """Main worker loop"""
     logger.info("🤖 AURA Autonomous Worker starting...")
     logger.info("✨ Features: Signal Processing, Governance, Whale Tracking, Sentiment Analysis")
+
+    # Setup Telegram bot in background
+    try:
+        asyncio.run(setup_telegram_bot())
+    except Exception as e:
+        logger.warning(f"Telegram setup failed: {e}")
 
     cycle_count = 0
 
