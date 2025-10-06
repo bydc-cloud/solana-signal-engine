@@ -125,11 +125,17 @@ def main():
     logger.info("✨ Features: Signal Processing, Governance, Whale Tracking, Sentiment Analysis")
     logger.info("🔧 MCP Tools: CoinGecko, Firecrawl, Memory, Puppeteer, Context7")
 
-    # Setup Telegram bot in background
-    try:
-        asyncio.run(setup_telegram_bot())
-    except Exception as e:
-        logger.warning(f"Telegram setup failed: {e}")
+    # Setup Telegram bot in background (run in separate thread)
+    import threading
+    def run_telegram_bot():
+        try:
+            asyncio.run(setup_telegram_bot())
+        except Exception as e:
+            logger.warning(f"Telegram setup failed: {e}")
+
+    telegram_thread = threading.Thread(target=run_telegram_bot, daemon=True)
+    telegram_thread.start()
+    logger.info("✅ Telegram bot started in background thread")
 
     cycle_count = 0
 
