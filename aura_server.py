@@ -123,10 +123,16 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}")
         await websocket_manager.disconnect(websocket)
 
-# Dashboard endpoint
+# Dashboard endpoint - Firecrawl style
 @app.get("/dashboard")
 async def dashboard():
-    """Serve the dashboard HTML"""
+    """Serve the modern Firecrawl-style dashboard"""
+    return FileResponse("dashboard/firecrawl-style.html")
+
+# Simple dashboard (legacy)
+@app.get("/dashboard/simple")
+async def dashboard_simple():
+    """Serve the simple dashboard"""
     return FileResponse("dashboard/index.html")
 
 # Mount static files for dashboard assets (if any)

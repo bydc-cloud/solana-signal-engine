@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA Intelligence - Live Trading Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0e1a;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        /* Animated gradient background */
+        .gradient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0e1a 0%, #1a1f3a 50%, #0a0e1a 100%);
+            z-index: -1;
+        }
+
+        .gradient-bg::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(98, 126, 234, 0.15) 0%, transparent 50%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            padding: 20px 30px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #627eea 0%, #7877c6 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .logo-text h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 0%, #a8a8ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-text p {
+            font-size: 14px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 24px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 12px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(98, 126, 234, 0.1) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(98, 126, 234, 0.5);
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 0%, #a8a8ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .stat-change {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stat-change.positive { color: #10b981; }
+        .stat-change.negative { color: #ef4444; }
+
+        /* Live Feed */
+        .feed-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+
+        .feed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .feed-header h2 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .refresh-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #627eea 0%, #7877c6 100%);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .feed-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border-left: 4px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .feed-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-left-color: #627eea;
+        }
+
+        .feed-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            background: linear-gradient(135deg, rgba(98, 126, 234, 0.2) 0%, rgba(120, 119, 198, 0.2) 100%);
+        }
+
+        .feed-content {
+            flex: 1;
+        }
+
+        .feed-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .feed-description {
+            font-size: 14px;
+            color: #888;
+        }
+
+        .feed-time {
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Scraping Visualization */
+        .scraping-viz {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .scrape-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .scrape-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            transform: translateY(-5px);
+        }
+
+        .scrape-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .token-symbol {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .momentum-badge {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .momentum-high { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .momentum-medium { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .momentum-low { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+        .scrape-data {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+
+        .data-label {
+            color: #888;
+        }
+
+        .data-value {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top-color: #627eea;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Glow effect */
+        .glow {
+            box-shadow: 0 0 20px rgba(98, 126, 234, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="gradient-bg"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">🤖</div>
+                <div class="logo-text">
+                    <h1>AURA Intelligence</h1>
+                    <p>Real-time Crypto Trading & Analysis</p>
+                </div>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>System Online</span>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total P&L</div>
+                <div class="stat-value" id="total-pnl">$0.00</div>
+                <div class="stat-change positive" id="pnl-change">
+                    ▲ 0.00%
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Open Positions</div>
+                <div class="stat-value" id="open-positions">0</div>
+                <div class="stat-change" id="positions-change">
+                    Active Trades
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Signals (24h)</div>
+                <div class="stat-value" id="signals-count">0</div>
+                <div class="stat-change" id="signals-change">
+                    Last scan: Just now
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Win Rate</div>
+                <div class="stat-value" id="win-rate">0%</div>
+                <div class="stat-change" id="winrate-change">
+                    All-time performance
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Feed -->
+        <div class="feed-container">
+            <div class="feed-header">
+                <h2>📡 Live Token Scanner</h2>
+                <button class="refresh-btn" onclick="loadAllData()">🔄 Refresh</button>
+            </div>
+
+            <div id="live-feed">
+                <div class="feed-item">
+                    <div class="feed-icon">⏳</div>
+                    <div class="feed-content">
+                        <div class="feed-title">Loading real-time data...</div>
+                        <div class="feed-description">Connecting to AURA scanners</div>
+                    </div>
+                    <div class="feed-time"><div class="loading"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scraping Visualization -->
+        <div class="feed-container">
+            <div class="feed-header">
+                <h2>🔥 Token Discovery (Firecrawl)</h2>
+            </div>
+            <div class="scraping-viz" id="scraping-viz">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        async function loadAllData() {
+            await Promise.all([
+                loadPortfolio(),
+                loadSignals(),
+                loadWatchlist()
+            ]);
+        }
+
+        async function loadPortfolio() {
+            try {
+                const response = await fetch(`${API_BASE}/api/portfolio`);
+                const data = await response.json();
+
+                document.getElementById('total-pnl').textContent = `$${data.total_pnl_usd.toFixed(2)}`;
+                document.getElementById('open-positions').textContent = data.open_positions;
+                document.getElementById('win-rate').textContent = `${data.win_rate.toFixed(1)}%`;
+
+                const pnlChange = document.getElementById('pnl-change');
+                if (data.total_pnl_usd >= 0) {
+                    pnlChange.className = 'stat-change positive';
+                    pnlChange.textContent = `▲ ${data.total_pnl_percent.toFixed(2)}%`;
+                } else {
+                    pnlChange.className = 'stat-change negative';
+                    pnlChange.textContent = `▼ ${Math.abs(data.total_pnl_percent).toFixed(2)}%`;
+                }
+            } catch (error) {
+                console.error('Error loading portfolio:', error);
+            }
+        }
+
+        async function loadSignals() {
+            try {
+                const response = await fetch(`${API_BASE}/alerts?hours=24&limit=10`);
+                const data = await response.json();
+
+                document.getElementById('signals-count').textContent = data.length || 0;
+
+                const feedHTML = data.slice(0, 5).map(signal => `
+                    <div class="feed-item">
+                        <div class="feed-icon">📈</div>
+                        <div class="feed-content">
+                            <div class="feed-title">${signal.symbol}</div>
+                            <div class="feed-description">Momentum: ${signal.grad_gs?.toFixed(1) || 'N/A'} | ${signal.token_address?.substring(0, 8)}...</div>
+                        </div>
+                        <div class="feed-time">${new Date(signal.created_at).toLocaleTimeString()}</div>
+                    </div>
+                `).join('');
+
+                document.getElementById('live-feed').innerHTML = feedHTML || '<div class="feed-item"><div class="feed-icon">💤</div><div class="feed-content"><div class="feed-title">No recent signals</div><div class="feed-description">Scanner is active, waiting for momentum</div></div></div>';
+            } catch (error) {
+                console.error('Error loading signals:', error);
+            }
+        }
+
+        async function loadWatchlist() {
+            try {
+                const response = await fetch(`${API_BASE}/api/watchlist`);
+                const data = await response.json();
+
+                const scrapingHTML = data.tokens.map(token => {
+                    const momentum = Math.random() * 100; // Placeholder
+                    const momentumClass = momentum > 70 ? 'momentum-high' : momentum > 40 ? 'momentum-medium' : 'momentum-low';
+
+                    return `
+                        <div class="scrape-card">
+                            <div class="scrape-header">
+                                <div class="token-symbol">${token.token_address?.substring(0, 8)}...</div>
+                                <div class="momentum-badge ${momentumClass}">${momentum.toFixed(0)}</div>
+                            </div>
+                            <div class="scrape-data">
+                                <div class="data-row">
+                                    <span class="data-label">Added</span>
+                                    <span class="data-value">${new Date(token.added_at).toLocaleDateString()}</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Reason</span>
+                                    <span class="data-value">${token.reason || 'Scanner'}</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Triggers</span>
+                                    <span class="data-value">${token.triggered_count || 0}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('scraping-viz').innerHTML = scrapingHTML || '<div style="text-align:center;padding:40px;color:#888">No tokens being tracked yet</div>';
+            } catch (error) {
+                console.error('Error loading watchlist:', error);
+            }
+        }
+
+        // Auto-refresh
+        setInterval(loadAllData, 30000);
+
+        // Initial load
+        loadAllData();
+    </script>
+</body>
+</html>
