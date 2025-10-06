@@ -39,17 +39,17 @@ def init_database():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS grad_paper_equity (
                 id INTEGER PRIMARY KEY,
-                total_usd REAL DEFAULT 100000,
-                realized_pnl REAL DEFAULT 0,
-                unrealized_pnl REAL DEFAULT 0,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                equity_usd REAL DEFAULT 100000,
+                realized_pnl_usd REAL DEFAULT 0,
+                unrealized_pnl_usd REAL DEFAULT 0,
+                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
         # Insert default paper equity if not exists
         cur.execute("""
-            INSERT OR IGNORE INTO grad_paper_equity (id, total_usd, realized_pnl, unrealized_pnl)
-            VALUES (1, 100000, 0, 0)
+            INSERT OR IGNORE INTO grad_paper_equity (id, equity_usd, realized_pnl_usd, unrealized_pnl_usd, ts)
+            VALUES (1, 100000, 0, 0, CURRENT_TIMESTAMP)
         """)
 
         conn.commit()
