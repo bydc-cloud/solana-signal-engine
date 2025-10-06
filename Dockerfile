@@ -1,4 +1,4 @@
-# Dockerfile for Helix Trading Bot - Railway Deployment
+# Dockerfile for AURA v0.3.0 - Railway Deployment
 FROM python:3.11-slim
 
 # Set working directory
