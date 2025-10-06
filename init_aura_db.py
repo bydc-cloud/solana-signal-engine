@@ -294,6 +294,55 @@ def init_aura_database():
             )
         """)
 
+        # ═══════════════════════════════════════════════════════════
+        # DASHBOARD-SPECIFIC TABLES (for dashboard API)
+        # ═══════════════════════════════════════════════════════════
+
+        print("🔔 Creating alerts table (dashboard)...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token_address TEXT,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                priority TEXT DEFAULT 'medium',
+                status TEXT DEFAULT 'unread',
+                alert_config_id INTEGER,
+                metadata_json TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                read_at TEXT,
+                dismissed_at TEXT
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_token ON alerts(token_address)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status)")
+
+        print("💰 Creating trades table (dashboard)...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token_address TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                side TEXT NOT NULL,
+                price REAL NOT NULL,
+                amount REAL NOT NULL,
+                value_usd REAL NOT NULL,
+                status TEXT DEFAULT 'active',
+                entry_price REAL,
+                exit_price REAL,
+                pnl_usd REAL DEFAULT 0,
+                pnl_percent REAL DEFAULT 0,
+                strategy_id INTEGER,
+                notes TEXT,
+                metadata_json TEXT,
+                opened_at TEXT DEFAULT (datetime('now')),
+                closed_at TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_trades_token ON trades(token_address)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status)")
+
         conn.commit()
         print("✅ AURA database initialized successfully!")
         print(f"📍 Location: {AURA_DB_PATH}")
@@ -302,7 +351,8 @@ def init_aura_database():
         tables = [
             'tokens', 'token_facts', 'user_profiles', 'portfolio_items',
             'watchlist', 'strategies', 'strategy_trades', 'alert_configs',
-            'alert_history', 'system_configs', 'aura_memories', 'daily_metrics'
+            'alert_history', 'system_configs', 'aura_memories', 'daily_metrics',
+            'alerts', 'trades'
         ]
 
         print("\n📋 Table Summary:")
