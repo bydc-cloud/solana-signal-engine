@@ -126,10 +126,16 @@ async def websocket_endpoint(websocket: WebSocket):
 # Mount Lovable dashboard static files
 app.mount("/assets", StaticFiles(directory="lovable_dashboard/dist/assets"), name="assets")
 
-# Dashboard endpoint - Firecrawl-style (default, works with AURA API)
+# Dashboard endpoint - AURA Live Dashboard (default, cyber theme with AURA API)
 @app.get("/dashboard")
 async def dashboard():
-    """Serve the Firecrawl-style dashboard with live AURA data"""
+    """Serve the AURA Live Dashboard with real-time data and cyber aesthetic"""
+    return FileResponse("dashboard/aura-live.html")
+
+# Firecrawl-style dashboard (alternative)
+@app.get("/dashboard/firecrawl")
+async def dashboard_firecrawl():
+    """Serve the Firecrawl-style dashboard"""
     return FileResponse("dashboard/firecrawl-style.html")
 
 # Lovable dashboard (Supabase-based, for reference)
