@@ -15,6 +15,10 @@ python3 init_aura_db.py || echo "⚠️  init_aura_db.py failed (might already e
 echo "🔄 Applying database migrations..."
 python3 run_migrations.py || echo "⚠️  Migrations failed (might already be applied)"
 
+# Step 2.5: Seed tracked wallets
+echo "🐋 Seeding whale wallets..."
+python3 seed_wallets.py || echo "ℹ️  Wallets already seeded"
+
 # Step 3: Start API server in background
 echo "🌐 Starting API server on port ${PORT:-8000}..."
 uvicorn aura_server:app --host 0.0.0.0 --port ${PORT:-8000} &
