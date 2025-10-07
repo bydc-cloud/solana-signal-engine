@@ -275,6 +275,50 @@ async def telegram_webhook(update: dict):
             else:
                 response_text += "Watchlist is empty"
 
+        elif "price" in text_lower or "chart" in text_lower or "token" in text_lower:
+            # Try to extract token symbol/address from message
+            words = text.split()
+            potential_symbol = None
+            for word in words:
+                if word.isupper() and len(word) <= 10:  # Likely a token symbol
+                    potential_symbol = word
+                    break
+
+            if potential_symbol:
+                # Look up token in watchlist or signals
+                token_info = None
+                for item in watchlist:
+                    if item.get('symbol', '').upper() == potential_symbol:
+                        token_info = item
+                        break
+
+                if not token_info and signals:
+                    for sig in signals:
+                        if sig.get('symbol', '').upper() == potential_symbol:
+                            token_info = sig
+                            break
+
+                if token_info:
+                    address = token_info.get('token_address', '')
+                    symbol = token_info.get('symbol', potential_symbol)
+                    response_text = f"📊 *{symbol}* Token Info\n\n"
+
+                    if 'price_usd' in token_info:
+                        response_text += f"💰 Price: ${token_info['price_usd']:.8f}\n"
+                    if 'market_cap' in token_info:
+                        response_text += f"📈 Market Cap: ${token_info['market_cap']:,.0f}\n"
+                    if 'volume_24h' in token_info:
+                        response_text += f"💹 24h Volume: ${token_info['volume_24h']:,.0f}\n"
+                    if 'momentum_score' in token_info:
+                        response_text += f"🚀 Momentum: {token_info['momentum_score']:.1f}\n"
+
+                    response_text += f"\n[View on Dexscreener](https://dexscreener.com/solana/{address})"
+                else:
+                    response_text = f"🔍 Token {potential_symbol} not found in watchlist or recent signals.\n\n"
+                    response_text += "Add tokens to watchlist to track them!"
+            else:
+                response_text = "🔍 Please specify a token symbol (e.g., 'show me SOL price')"
+
         else:
             response_text = f"🤖 *AURA Intelligence*\n\n"
             response_text += f"I understand you're asking: _{text}_\n\n"
@@ -282,7 +326,7 @@ async def telegram_webhook(update: dict):
             response_text += f"💼 Portfolio: {portfolio['open_positions']} positions, ${portfolio['total_pnl_usd']:,.2f} P&L\n"
             response_text += f"📡 Signals: {len(signals)} in last 24h\n"
             response_text += f"👀 Watchlist: {len(watchlist)} tokens\n\n"
-            response_text += "Ask me about portfolio, signals, or watchlist!"
+            response_text += "Ask me about portfolio, signals, watchlist, or token prices!"
 
         # Store bot response
         try:
