@@ -7,9 +7,16 @@ import logging
 import json
 import asyncio
 from typing import Dict, List, Optional
-from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
+
+# Optional Anthropic import
+try:
+    from anthropic import Anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
+    logger.warning("⚠️  anthropic module not installed - MCP features will be limited")
 
 class MCPTelegramHandler:
     """
@@ -21,11 +28,14 @@ class MCPTelegramHandler:
         self.anthropic_key = os.getenv("ANTHROPIC_API_KEY")
         self.client = None
 
-        if self.anthropic_key:
+        if ANTHROPIC_AVAILABLE and self.anthropic_key:
             self.client = Anthropic(api_key=self.anthropic_key)
             logger.info("✅ MCP Telegram Handler initialized with Claude")
         else:
-            logger.warning("⚠️  No ANTHROPIC_API_KEY - MCP features disabled")
+            if not ANTHROPIC_AVAILABLE:
+                logger.warning("⚠️  Anthropic SDK not available")
+            elif not self.anthropic_key:
+                logger.warning("⚠️  No ANTHROPIC_API_KEY - MCP features disabled")
 
     async def handle_message(
         self,
