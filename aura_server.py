@@ -131,7 +131,7 @@ app.mount("/assets", StaticFiles(directory="lovable_dashboard/dist/assets"), nam
 @app.get("/dashboard")
 async def dashboard():
     """Serve the AURA Control Center with real-time data - Portfolio, Signals, Watchlist"""
-    return FileResponse("dashboard/axiom-pro.html")
+    return FileResponse("dashboard/aura-complete.html")
 
 # Chat interface
 @app.get("/chat")
