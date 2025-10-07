@@ -782,3 +782,33 @@ async def get_strategy_metrics(strategy_id: int):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Wallet tracking endpoint
+@router.get("/wallets")
+async def get_tracked_wallets():
+    """Get all tracked whale wallets"""
+    try:
+        with db._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT address, win_rate, avg_pnl, total_trades, successful_trades, last_updated
+                FROM tracked_wallets
+                WHERE is_active = 1
+                ORDER BY (win_rate * avg_pnl) DESC
+                LIMIT 100
+            """)
+            
+            wallets = []
+            for row in cur.fetchall():
+                wallets.append({
+                    'address': row[0],
+                    'win_rate': row[1],
+                    'avg_pnl': row[2],
+                    'total_trades': row[3],
+                    'successful_trades': row[4],
+                    'last_updated': row[5]
+                })
+            
+            return {"wallets": wallets, "count": len(wallets)}
+    except Exception as e:
+        return {"wallets": [], "count": 0}
