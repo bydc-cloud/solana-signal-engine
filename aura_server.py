@@ -217,12 +217,17 @@ async def telegram_webhook(update: dict):
         text_lower = text.lower()
 
         if text.startswith('/start'):
-            response_text = "🤖 *AURA v0.3.0 - Autonomous Crypto Intelligence*\n\n"
-            response_text += "I can help you with:\n\n"
-            response_text += "💼 Portfolio: Ask 'how's my portfolio?' or use /portfolio\n"
-            response_text += "📡 Signals: Ask 'show me signals' or use /signals\n"
-            response_text += "👀 Watchlist: Ask 'what are we watching?' or use /watchlist\n\n"
-            response_text += "Just talk to me naturally - I understand context!"
+            response_text = "*AURA v0.3.0 - Autonomous Intelligence*\n\n"
+            response_text += "*Trading:*\n"
+            response_text += "/portfolio - Portfolio summary\n"
+            response_text += "/signals - Recent signals\n"
+            response_text += "/watchlist - Tracked tokens\n\n"
+            response_text += "*Autonomous Control:*\n"
+            response_text += "/status - Project status\n"
+            response_text += "/deploy - Deploy to Railway\n"
+            response_text += "/changes - Recent changes\n"
+            response_text += "/analyze - Codebase analysis\n\n"
+            response_text += "Or just talk naturally - I understand context!"
 
         elif text.startswith('/portfolio'):
             response_text = f"💼 *Portfolio Summary*\n\n"
@@ -244,7 +249,7 @@ async def telegram_webhook(update: dict):
                 response_text += "No signals in last 24h"
 
         elif text.startswith('/watchlist'):
-            response_text = f"👀 *Watchlist* ({len(watchlist)} tokens)\n\n"
+            response_text = f"*Watchlist* ({len(watchlist)} tokens)\n\n"
             if watchlist:
                 for item in watchlist[:5]:
                     symbol = item.get('symbol', 'Unknown')
@@ -253,6 +258,73 @@ async def telegram_webhook(update: dict):
                 response_text += f"\nClick tokens to view on Dexscreener"
             else:
                 response_text += "Watchlist is empty"
+
+        # AUTONOMOUS CONTROL COMMANDS
+        elif text.startswith('/status'):
+            from aura.autonomous_controller import autonomous_controller
+            summary = await autonomous_controller.get_project_summary()
+            response_text = "*Project Status*\n\n"
+            response_text += f"📁 Python Files: {summary.get('python_files', 'N/A')}\n"
+            response_text += f"📍 Root: `{summary.get('project_root', 'N/A')}`\n\n"
+            git_status = summary.get('git_status', '').strip()
+            if git_status:
+                response_text += f"*Git Status:*\n```\n{git_status[:200]}\n```"
+            else:
+                response_text += "*Git Status:* Clean working tree"
+
+        elif text.startswith('/deploy'):
+            from aura.autonomous_controller import autonomous_controller
+            response_text = "*Deploying to Railway...*\n\n"
+            response_text += "This will:\n"
+            response_text += "1. Push code to GitHub\n"
+            response_text += "2. Trigger Railway build\n"
+            response_text += "3. Deploy new version\n\n"
+            response_text += "⏳ Starting deployment..."
+
+            # Send initial message
+            bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+            if bot_token:
+                async with aiohttp.ClientSession() as session:
+                    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                    await session.post(url, json={
+                        "chat_id": chat_id,
+                        "text": response_text,
+                        "parse_mode": "Markdown"
+                    })
+
+            # Actually deploy
+            result = await autonomous_controller.deploy_to_railway()
+            if result.get('success'):
+                response_text = "✅ *Deployment Successful!*\n\n"
+                response_text += "Check Railway dashboard for build logs."
+            else:
+                response_text = f"❌ *Deployment Failed*\n\n"
+                response_text += f"Error: {result.get('error', 'Unknown error')}"
+
+        elif text.startswith('/changes'):
+            from aura.autonomous_controller import autonomous_controller
+            changes = await autonomous_controller.get_recent_changes(days=7)
+            response_text = "*Recent Changes (7 days)*\n\n"
+            if changes and len(changes) > 10:
+                response_text += f"```\n{changes[:1500]}\n```\n\n"
+                response_text += "Use `/changes 1` for last day"
+            else:
+                response_text += "No recent changes"
+
+        elif text.startswith('/analyze'):
+            from aura.autonomous_controller import autonomous_controller
+            query = text.replace('/analyze', '').strip()
+            if not query:
+                response_text = "*Codebase Analysis*\n\n"
+                response_text += "Ask me:\n"
+                response_text += "• /analyze files\n"
+                response_text += "• /analyze database\n"
+                response_text += "• /analyze api\n"
+                response_text += "• /analyze dependencies"
+            else:
+                analysis = await autonomous_controller.analyze_codebase(query)
+                response_text = f"*Analysis: {query}*\n\n"
+                response_text += f"```\n{analysis[:1500]}\n```"
 
         elif "portfolio" in text_lower or "pnl" in text_lower or "position" in text_lower:
             response_text = f"💼 Current Portfolio:\n\n"

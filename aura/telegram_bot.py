@@ -99,16 +99,15 @@ class AuraTelegramBot:
             except:
                 pass
 
-        message = f"""
-🎯 *New Signal: {symbol}*
+        # Clean formatting with minimal emojis
+        message = f"""*New Signal: {symbol}*
 
 Momentum: `{momentum:.1f}`
 Market Cap: `${details.get('mc', 0):,.0f}`
 Liquidity: `${details.get('liquidity', 0):,.0f}`
-Volume Ratio: `{details.get('volume_ratio', 0):.2f}`{age_str}
+Volume: `${details.get('volume_24h', 0):,.0f}`{age_str}
 
-[View on Birdeye](https://birdeye.so/token/{details.get('address', '')})
-[View on Dexscreener](https://dexscreener.com/solana/{details.get('address', '')})
+[Dexscreener](https://dexscreener.com/solana/{details.get('address', '')}) • [Birdeye](https://birdeye.so/token/{details.get('address', '')})
 """
         return await self.send_message(message)
 
