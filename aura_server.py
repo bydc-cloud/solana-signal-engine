@@ -169,13 +169,72 @@ async def telegram_webhook(update: dict):
 
         chat_id = message.get('chat', {}).get('id')
         text = message.get('text', '')
+        voice = message.get('voice')
         user_id = message.get('from', {}).get('id', 0)
         username = message.get('from', {}).get('username') or message.get('from', {}).get('first_name', 'User')
 
-        if not text or not chat_id:
+        if not chat_id:
             return {"ok": True}
 
-        logger.info(f"📱 Telegram message from {username} ({chat_id}): {text}")
+        # Handle voice messages
+        if voice and not text:
+            logger.info(f"🎤 Voice message from {username} ({chat_id})")
+
+            # Try to transcribe using OpenAI Whisper
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if openai_key:
+                try:
+                    import tempfile
+                    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+
+                    # Get voice file
+                    async with aiohttp.ClientSession() as session:
+                        file_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={voice['file_id']}"
+                        async with session.get(file_url) as resp:
+                            file_info = await resp.json()
+                            file_path = file_info['result']['file_path']
+
+                        # Download voice file
+                        voice_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
+                        async with session.get(voice_url) as resp:
+                            voice_data = await resp.read()
+
+                    # Save temporarily
+                    with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as tmp:
+                        tmp.write(voice_data)
+                        tmp_path = tmp.name
+
+                    # Transcribe with Whisper
+                    import openai
+                    openai.api_key = openai_key
+                    with open(tmp_path, 'rb') as audio_file:
+                        transcript = openai.Audio.transcribe("whisper-1", audio_file)
+                        text = transcript['text']
+
+                    # Clean up
+                    os.unlink(tmp_path)
+
+                    logger.info(f"📝 Transcribed: {text[:50]}...")
+
+                    # Send transcription confirmation
+                    async with aiohttp.ClientSession() as session:
+                        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                        await session.post(url, json={
+                            "chat_id": chat_id,
+                            "text": f"🎤 Transcribed: _{text}_",
+                            "parse_mode": "Markdown"
+                        })
+
+                except Exception as e:
+                    logger.error(f"Whisper transcription error: {e}")
+                    text = "voice message (transcription failed)"
+            else:
+                text = "voice message (no OpenAI key)"
+
+        if not text:
+            return {"ok": True}
+
+        logger.info(f"📱 Message from {username} ({chat_id}): {text[:100]}")
 
         # Get system context
         portfolio = db.get_portfolio_summary()
