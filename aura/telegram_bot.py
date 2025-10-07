@@ -234,7 +234,7 @@ Ready to assist 24/7 🚀
             await update.message.reply_text(f"Error: {e}")
 
     async def cmd_watchlist(self, update, context):
-        """Handle /watchlist command"""
+        """Handle /watchlist command with token images"""
         try:
             db = get_db()
             watchlist = db.get_watchlist()
@@ -242,6 +242,25 @@ Ready to assist 24/7 🚀
             if not watchlist:
                 await update.message.reply_text("Watchlist is empty")
                 return
+
+            # Send a photo with the first token if available
+            if watchlist and watchlist[0].get('token_address'):
+                first_token = watchlist[0]
+                address = first_token.get('token_address', '')
+                symbol = first_token.get('symbol', 'Unknown')
+
+                # Try to get token image from Dexscreener
+                image_url = f"https://dd.dexscreener.com/ds-data/tokens/solana/{address}.png"
+
+                try:
+                    from telegram import InputMediaPhoto
+                    await update.message.reply_photo(
+                        photo=image_url,
+                        caption=f"*{symbol}*\n[View on Dexscreener](https://dexscreener.com/solana/{address})",
+                        parse_mode='Markdown'
+                    )
+                except:
+                    pass  # If image fails, continue with text
 
             message = f"*Watchlist* ({len(watchlist)} tokens)\n\n"
 
@@ -367,7 +386,7 @@ Ready to assist 24/7 🚀
         await update.message.reply_text(response, parse_mode='Markdown')
 
     async def handle_text_message(self, update, context):
-        """Handle natural language text messages using AI"""
+        """Handle natural language text messages using AI with command execution"""
         try:
             user_message = update.message.text
             logger.info(f"📝 Natural language message: {user_message[:50]}...")
@@ -386,53 +405,19 @@ Ready to assist 24/7 🚀
 
             context_info = f"""
 System Context:
-- Portfolio: {portfolio['open_positions']} open positions, ${portfolio['total_pnl_usd']:.2f} P&L
+- Portfolio: {portfolio['open_positions']} open positions, ${portfolio['total_pnl_usd']:.2f} P&L, {portfolio['win_rate']:.1f}% win rate
 - Watchlist: {len(watchlist)} tokens tracked
 - Recent Signals: {len(signals)} in last 24h
 - Active Strategies: {len(strategies)}
+- Available Commands: /portfolio, /watchlist, /signals, /strategies, /stats, /scan, /report
 
 User Query: {user_message}
 """
 
-            # Use MCP toolkit to generate AI response
-            try:
-                from aura.mcp_toolkit import mcp_toolkit, MCP_TOOLKIT_AVAILABLE
+            # Use AI to generate intelligent response with command routing
+            response = await self._generate_ai_response_with_commands(user_message, context_info, portfolio, watchlist, signals)
 
-                if MCP_TOOLKIT_AVAILABLE:
-                    # Use Claude via MCP for intelligent response
-                    response = await self._generate_ai_response(user_message, context_info)
-                else:
-                    response = f"🤖 Received: _{user_message}_\n\n"
-                    response += "I can help with:\n"
-                    response += "• Portfolio analysis\n"
-                    response += "• Token research\n"
-                    response += "• System debugging\n"
-                    response += "• Strategy explanation\n\n"
-                    response += "Use /help for command list"
-
-            except Exception as e:
-                logger.error(f"AI response error: {e}")
-                response = f"🤔 I understand you're asking about: _{user_message}_\n\n"
-                response += "Let me check the data...\n\n"
-
-                # Provide context-aware response
-                if "portfolio" in user_message.lower() or "pnl" in user_message.lower():
-                    response += f"💼 Current Portfolio:\n"
-                    response += f"• Open Positions: {portfolio['open_positions']}\n"
-                    response += f"• Total P&L: ${portfolio['total_pnl_usd']:.2f}\n"
-                    response += f"• Win Rate: {portfolio['win_rate']:.1f}%\n"
-                elif "signal" in user_message.lower():
-                    response += f"📡 Recent Signals: {len(signals)} in last 24h\n"
-                    for sig in signals[:3]:
-                        response += f"• {sig['symbol']}: {sig['momentum_score']:.1f}\n"
-                elif "token" in user_message.lower() or "coin" in user_message.lower():
-                    response += f"👀 Watchlist: {len(watchlist)} tokens\n"
-                    for item in watchlist[:3]:
-                        response += f"• {item['token_address'][:8]}...\n"
-                else:
-                    response += "Use /help to see what I can do!"
-
-            await update.message.reply_text(response, parse_mode='Markdown')
+            await update.message.reply_text(response, parse_mode='Markdown', disable_web_page_preview=True)
 
         except Exception as e:
             logger.error(f"Text message handler error: {e}")
@@ -504,8 +489,8 @@ User Query: {user_message}
             logger.error(f"Voice message handler error: {e}")
             await update.message.reply_text(f"❌ Error processing voice: {str(e)}")
 
-    async def _generate_ai_response(self, query: str, context: str) -> str:
-        """Generate AI response using Claude API via Anthropic"""
+    async def _generate_ai_response_with_commands(self, query: str, context: str, portfolio: dict, watchlist: list, signals: list) -> str:
+        """Generate intelligent AI response that can execute commands based on user intent"""
         try:
             # Try using Anthropic Claude API directly
             anthropic_key = os.getenv("ANTHROPIC_API_KEY")
@@ -520,17 +505,27 @@ User Query: {user_message}
 
 {context}
 
-Provide a helpful, concise response (max 3-4 sentences) to the user's query.
-Focus on actionable insights and data-driven analysis.
-Use emojis sparingly and keep formatting simple for Telegram.
+Analyze the user's query and provide a helpful, data-rich response. You have access to real-time data:
+- Portfolio data: {portfolio}
+- Watchlist: {len(watchlist)} tokens
+- Recent signals: {len(signals)} signals
+
+If the user asks about:
+- Portfolio/P&L → Show detailed portfolio stats with positions
+- Signals → List recent signals with momentum scores and ages
+- Watchlist → Show tracked tokens with Dexscreener links
+- Tokens → Provide analysis and recommendations
+- System status → Show scanner status and metrics
+
+Format response in Markdown. Be concise but informative (3-5 sentences). Include relevant emojis.
 
 User Query: {query}
 
-Respond directly to the user's question based on the system context above."""
+Provide a complete, actionable response with real data."""
 
                     message = client.messages.create(
                         model="claude-3-5-sonnet-20241022",
-                        max_tokens=300,
+                        max_tokens=500,
                         temperature=0.7,
                         messages=[
                             {"role": "user", "content": prompt}
@@ -540,28 +535,75 @@ Respond directly to the user's question based on the system context above."""
                     ai_response = message.content[0].text
                     logger.info(f"✅ Claude API response: {ai_response[:50]}...")
 
-                    return f"🤖 {ai_response}"
+                    return ai_response
 
                 except ImportError:
                     logger.warning("anthropic package not installed, using fallback")
                 except Exception as e:
                     logger.error(f"Claude API error: {e}")
 
-            # Fallback: Smart contextual response
-            response = f"🤖 **AURA Analysis**\n\n"
-            response += f"Query: _{query}_\n\n"
-            response += "Based on current system data, I'm analyzing your request...\n\n"
-            response += "💡 Use specific commands for detailed info:\n"
-            response += "• `/portfolio` - Full portfolio breakdown\n"
-            response += "• `/signals` - Recent trading signals\n"
-            response += "• `/stats` - System statistics\n"
-            response += "\n_Note: Set ANTHROPIC_API_KEY for AI-powered responses_"
+            # Fallback: Smart contextual response with command execution
+            query_lower = query.lower()
+
+            if "portfolio" in query_lower or "pnl" in query_lower or "position" in query_lower:
+                response = f"💼 *Portfolio Summary*\n\n"
+                response += f"• Open Positions: {portfolio['open_positions']}\n"
+                response += f"• Portfolio Value: ${portfolio['open_value_usd']:,.2f}\n"
+                response += f"• Total P&L: ${portfolio['total_pnl_usd']:,.2f} ({portfolio['total_pnl_percent']:+.2f}%)\n"
+                response += f"• Win Rate: {portfolio['win_rate']:.1f}%\n\n"
+                response += f"Use /portfolio for full details"
+
+            elif "signal" in query_lower:
+                response = f"📡 *Recent Signals* (last 24h)\n\n"
+                if signals:
+                    for sig in signals[:5]:
+                        symbol = sig.get('symbol', 'Unknown')
+                        momentum = sig.get('momentum_score', 0)
+                        address = sig.get('token_address', '')
+                        response += f"• [{symbol}](https://dexscreener.com/solana/{address}) - Momentum: {momentum:.1f}\n"
+                    response += f"\n{len(signals)} total signals"
+                else:
+                    response += "No signals in last 24h"
+                response += f"\n\nUse /signals for more"
+
+            elif "watchlist" in query_lower or "watch" in query_lower:
+                response = f"👀 *Watchlist* ({len(watchlist)} tokens)\n\n"
+                if watchlist:
+                    for item in watchlist[:5]:
+                        symbol = item.get('symbol', 'Unknown')
+                        address = item.get('token_address', '')
+                        response += f"• [{symbol}](https://dexscreener.com/solana/{address})\n"
+                    response += f"\nUse /watchlist for full list"
+                else:
+                    response += "Watchlist is empty"
+
+            elif "scan" in query_lower or "search" in query_lower or "find" in query_lower:
+                response = f"🔍 *Scanner Status*\n\n"
+                response += f"• Recent Signals: {len(signals)}\n"
+                response += f"• Watchlist: {len(watchlist)} tokens\n\n"
+                response += "Use /scan to trigger manual scan"
+
+            else:
+                response = f"🤖 *AURA Intelligence*\n\n"
+                response += f"I can help you with:\n\n"
+                response += f"💼 Portfolio: {portfolio['open_positions']} positions, ${portfolio['total_pnl_usd']:,.2f} P&L\n"
+                response += f"📡 Signals: {len(signals)} in last 24h\n"
+                response += f"👀 Watchlist: {len(watchlist)} tokens\n\n"
+                response += f"Ask me about portfolio, signals, watchlist, or use /help"
 
             return response
 
         except Exception as e:
             logger.error(f"AI response generation error: {e}")
             return f"🤔 Processing your query: _{query}_\n\nUse /help for available commands."
+
+    async def _generate_ai_response(self, query: str, context: str) -> str:
+        """Legacy method - redirects to new command-aware version"""
+        db = get_db()
+        portfolio = db.get_portfolio_summary()
+        watchlist = db.get_watchlist()
+        signals = db.get_recent_helix_signals(hours=24, limit=5)
+        return await self._generate_ai_response_with_commands(query, context, portfolio, watchlist, signals)
 
 
 # Singleton
