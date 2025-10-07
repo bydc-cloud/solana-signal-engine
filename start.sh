@@ -31,11 +31,11 @@ fi
 
 echo "✅ API server started (PID: $SERVER_PID)"
 
-# Step 4: Start scanner in background (optional, won't fail startup)
-echo "📡 Starting signal scanner..."
-python3 REALITY_MOMENTUM_SCANNER.py &
+# Step 4: Start UNIFIED scanner in background (combines rule-based + intelligent)
+echo "📡 Starting unified signal scanner..."
+python3 unified_scanner.py &
 SCANNER_PID=$!
-echo "✅ Scanner started (PID: $SCANNER_PID)"
+echo "✅ Unified scanner started (PID: $SCANNER_PID)"
 
 # Step 5: Start autonomous worker (optional)
 echo "🤖 Starting autonomous worker..."

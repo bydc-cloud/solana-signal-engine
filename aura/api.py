@@ -567,11 +567,26 @@ class ChatQuery(BaseModel):
 
 @router.post("/chat")
 async def chat_query(chat: ChatQuery):
-    """Natural language query interface"""
+    """Natural language query interface with MCP intelligence"""
     try:
-        from .chat import chat as chat_engine
-        response = chat_engine.process_query(chat.query)
-        return response
+        # Try MCP chat first (Claude with tools)
+        try:
+            from .mcp_chat import mcp_chat
+
+            # Get context for Claude
+            context = {
+                "recent_signals": db.get_recent_helix_signals(hours=24, limit=10),
+                "portfolio_summary": db.get_portfolio_summary(),
+                "tracked_wallets": []  # Would fetch from tracked_wallets table
+            }
+
+            response = await mcp_chat.process_query(chat.query, context)
+            return response
+        except Exception as mcp_error:
+            # Fallback to simple keyword chat
+            from .chat import chat as chat_engine
+            response = chat_engine.process_query(chat.query)
+            return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
