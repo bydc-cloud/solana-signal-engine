@@ -205,11 +205,14 @@ async def telegram_webhook(update: dict):
                         tmp_path = tmp.name
 
                     # Transcribe with Whisper
-                    import openai
-                    openai.api_key = openai_key
+                    from openai import OpenAI
+                    client = OpenAI(api_key=openai_key)
                     with open(tmp_path, 'rb') as audio_file:
-                        transcript = openai.Audio.transcribe("whisper-1", audio_file)
-                        text = transcript['text']
+                        transcript = client.audio.transcriptions.create(
+                            model="whisper-1",
+                            file=audio_file
+                        )
+                        text = transcript.text
 
                     # Clean up
                     os.unlink(tmp_path)
