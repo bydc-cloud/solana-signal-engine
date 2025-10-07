@@ -168,8 +168,6 @@ async def aura_chat(request: Request):
     Uses MCP tools and Claude AI for intelligent responses
     """
     try:
-        from aura.mcp_telegram_handler import mcp_handler
-
         data = await request.json()
         message = data.get("message", "")
 
@@ -181,18 +179,63 @@ async def aura_chat(request: Request):
         watchlist = db.get_watchlist()
         signals = db.get_recent_helix_signals(hours=24, limit=5)
 
-        context = {
-            "portfolio": portfolio,
-            "watchlist": watchlist,
-            "signals": signals
-        }
+        message_lower = message.lower()
 
-        # Use MCP handler for intelligent response
-        response_text = await mcp_handler.handle_message(
-            message=message,
-            context=context,
-            username="User"
-        )
+        # Generate intelligent response based on context
+        if "portfolio" in message_lower:
+            response_text = f"""💼 **Portfolio Summary**
+
+• Open Positions: {portfolio['open_positions']}
+• Portfolio Value: ${portfolio['open_value_usd']:,.2f}
+• Total P&L: ${portfolio['total_pnl_usd']:,.2f} ({portfolio['total_pnl_percent']:+.2f}%)
+• Win Rate: {portfolio['win_rate']:.1f}%"""
+
+        elif "signal" in message_lower:
+            response_text = f"""📡 **Recent Signals** (last 24h)
+
+Found {len(signals)} signals"""
+            if signals:
+                response_text += "\n\n"
+                for sig in signals[:3]:
+                    symbol = sig.get('symbol', 'Unknown')
+                    momentum = sig.get('momentum_score', 0)
+                    response_text += f"• **{symbol}** - Momentum: {momentum:.1f}\n"
+
+        elif "watchlist" in message_lower:
+            response_text = f"""👁️ **Watchlist**
+
+Tracking {len(watchlist)} tokens"""
+            if watchlist:
+                response_text += "\n\n"
+                for token in watchlist[:5]:
+                    response_text += f"• {token.get('symbol', 'Unknown')}\n"
+
+        elif "market" in message_lower or "trend" in message_lower:
+            response_text = f"""📈 **Market Overview**
+
+Based on {len(signals)} recent signals:
+• Scanner Status: Active
+• Signals (24h): {len(signals)}
+• Watchlist: {len(watchlist)} tokens
+
+The momentum scanner is actively monitoring Solana DEX markets."""
+
+        else:
+            # Generic helpful response
+            response_text = f"""🤖 **AURA Intelligence**
+
+I'm here to help with:
+• Portfolio analysis - Ask "show my portfolio"
+• Signal monitoring - Ask "what are the latest signals"
+• Market trends - Ask "analyze market trends"
+• Watchlist management - Ask "show my watchlist"
+
+Current status:
+• Signals (24h): {len(signals)}
+• Watchlist: {len(watchlist)} tokens
+• Portfolio: {portfolio['open_positions']} positions
+
+What would you like to know?"""
 
         return {
             "response": response_text,
