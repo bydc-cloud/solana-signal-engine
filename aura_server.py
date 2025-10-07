@@ -126,11 +126,17 @@ async def websocket_endpoint(websocket: WebSocket):
 # Mount Lovable dashboard static files
 app.mount("/assets", StaticFiles(directory="lovable_dashboard/dist/assets"), name="assets")
 
-# Dashboard endpoint - AURA Chat Interface (default, ChatGPT-style with voice)
+# Dashboard endpoint - AURA Control Center (default, REAL DATA)
 @app.get("/")
 @app.get("/dashboard")
 async def dashboard():
-    """Serve the AURA Chat interface with AI voice and MCP tools"""
+    """Serve the AURA Control Center with real-time data - Portfolio, Signals, Watchlist"""
+    return FileResponse("dashboard/aura-control-center.html")
+
+# Chat interface
+@app.get("/chat")
+async def dashboard_chat():
+    """Serve the AURA Chat interface with AI voice"""
     return FileResponse("dashboard/aura-chat.html")
 
 # Data dashboard (alternative, cyber theme)

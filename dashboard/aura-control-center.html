@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA Control Center - Real-Time Trading Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #0a0e1a;
+            color: #e5e7eb;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: #151921;
+            border-radius: 12px;
+            border: 1px solid #1f2937;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #3dd8ff 0%, #627eea 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .logo-text h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3dd8ff 0%, #627eea 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-text p {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .status-badge {
+            padding: 0.6rem 1.2rem;
+            background: rgba(77, 222, 128, 0.1);
+            border: 1px solid rgba(77, 222, 128, 0.3);
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #4ade80;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Card Styles */
+        .card {
+            background: #151921;
+            border: 1px solid #1f2937;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #e5e7eb;
+        }
+
+        .card-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+
+        .card-subtitle {
+            font-size: 13px;
+            color: #9ca3af;
+        }
+
+        .positive { color: #4ade80; }
+        .negative { color: #f87171; }
+
+        /* Signals List */
+        .signals-list, .watchlist, .wallet-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .signal-item, .wallet-item, .token-item {
+            padding: 1rem;
+            background: #1a1f2e;
+            border-radius: 8px;
+            border: 1px solid #1f2937;
+        }
+
+        .signal-header, .wallet-header, .token-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .signal-symbol {
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .signal-momentum {
+            padding: 0.25rem 0.75rem;
+            background: rgba(61, 216, 255, 0.1);
+            border: 1px solid rgba(61, 216, 255, 0.3);
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .signal-details {
+            display: flex;
+            gap: 1rem;
+            font-size: 13px;
+            color: #9ca3af;
+        }
+
+        .signal-details span {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* Portfolio Table */
+        .portfolio-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .portfolio-table th {
+            text-align: left;
+            padding: 0.75rem;
+            font-size: 13px;
+            color: #9ca3af;
+            border-bottom: 1px solid #1f2937;
+        }
+
+        .portfolio-table td {
+            padding: 1rem 0.75rem;
+            border-bottom: 1px solid #1f2937;
+        }
+
+        .portfolio-table tr:hover {
+            background: #1a1f2e;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #9ca3af;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #9ca3af;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #1f2937;
+            border-top-color: #3dd8ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #151921;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(61, 216, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(61, 216, 255, 0.5);
+        }
+
+        /* Refresh Button */
+        .refresh-btn {
+            padding: 0.5rem 1rem;
+            background: rgba(61, 216, 255, 0.1);
+            border: 1px solid rgba(61, 216, 255, 0.3);
+            border-radius: 8px;
+            color: #3dd8ff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(61, 216, 255, 0.2);
+        }
+
+        /* Link Styles */
+        a {
+            color: #3dd8ff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">🤖</div>
+                <div class="logo-text">
+                    <h1>AURA Control Center</h1>
+                    <p>Real-Time Trading Intelligence</p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <button class="refresh-btn" onclick="loadAllData()">🔄 Refresh</button>
+                <div class="status-badge">
+                    <div class="status-dot"></div>
+                    <span id="status">Online</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio Stats Grid -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">💼 Portfolio Value</span>
+                </div>
+                <div class="card-value" id="portfolioValue">$0</div>
+                <div class="card-subtitle">Total equity</div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">📈 Total P&L</span>
+                </div>
+                <div class="card-value" id="totalPnl">$0</div>
+                <div class="card-subtitle" id="pnlPercent">0%</div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">🎯 Win Rate</span>
+                </div>
+                <div class="card-value" id="winRate">0%</div>
+                <div class="card-subtitle" id="positionsInfo">0 positions</div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">📡 Signals (24h)</span>
+                </div>
+                <div class="card-value" id="signalsCount">0</div>
+                <div class="card-subtitle">Recent momentum alerts</div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid">
+            <!-- Recent Signals -->
+            <div class="card" style="grid-column: span 2;">
+                <div class="card-header">
+                    <span class="card-title">📡 Recent Signals</span>
+                </div>
+                <div id="signalsList" class="signals-list loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+
+            <!-- Watchlist -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">👁️ Watchlist</span>
+                </div>
+                <div id="watchlist" class="watchlist loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio Positions -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">💼 Open Positions</span>
+            </div>
+            <div id="portfolio" class="loading">
+                <div class="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Scanner Metrics -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">⚙️ Scanner Metrics</span>
+            </div>
+            <div id="scannerMetrics" class="loading">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        // Load all data
+        async function loadAllData() {
+            await Promise.all([
+                loadPortfolio(),
+                loadSignals(),
+                loadWatchlist(),
+                loadScannerMetrics()
+            ]);
+        }
+
+        // Load Portfolio
+        async function loadPortfolio() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/portfolio`);
+                const data = await response.json();
+
+                const summary = data.summary;
+                const positions = data.open_positions;
+
+                // Update cards
+                document.getElementById('portfolioValue').textContent = `$${summary.open_value_usd.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+
+                const pnl = summary.total_pnl_usd;
+                const pnlEl = document.getElementById('totalPnl');
+                pnlEl.textContent = `$${pnl.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+                pnlEl.className = `card-value ${pnl >= 0 ? 'positive' : 'negative'}`;
+
+                document.getElementById('pnlPercent').textContent = `${summary.total_pnl_percent >= 0 ? '+' : ''}${summary.total_pnl_percent.toFixed(2)}%`;
+                document.getElementById('winRate').textContent = `${summary.win_rate.toFixed(1)}%`;
+                document.getElementById('positionsInfo').textContent = `${summary.open_positions} open, ${summary.closed_positions} closed`;
+
+                // Render positions table
+                const portfolioEl = document.getElementById('portfolio');
+                if (positions.length === 0) {
+                    portfolioEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No open positions</p></div>';
+                } else {
+                    let html = '<table class="portfolio-table"><thead><tr><th>Token</th><th>Entry</th><th>Current</th><th>Amount</th><th>P&L</th><th>Age</th></tr></thead><tbody>';
+
+                    positions.forEach(pos => {
+                        const pnl = pos.pnl_usd || 0;
+                        const pnlClass = pnl >= 0 ? 'positive' : 'negative';
+                        const age = formatAge(pos.entry_time);
+
+                        html += `<tr>
+                            <td><strong>${pos.symbol || 'Unknown'}</strong></td>
+                            <td>$${pos.entry_price.toFixed(6)}</td>
+                            <td>$${(pos.current_price || pos.entry_price).toFixed(6)}</td>
+                            <td>${pos.amount.toFixed(2)}</td>
+                            <td class="${pnlClass}">$${pnl.toFixed(2)} (${(pos.pnl_percent || 0).toFixed(2)}%)</td>
+                            <td>${age}</td>
+                        </tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    portfolioEl.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Portfolio error:', error);
+                document.getElementById('portfolio').innerHTML = '<div class="empty-state"><p>Error loading portfolio</p></div>';
+            }
+        }
+
+        // Load Signals
+        async function loadSignals() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/scanner/signals?hours=24&limit=20`);
+                const data = await response.json();
+
+                const signals = data.signals || [];
+                document.getElementById('signalsCount').textContent = signals.length;
+
+                const listEl = document.getElementById('signalsList');
+                if (signals.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📡</div><p>No signals in last 24h</p></div>';
+                } else {
+                    let html = '';
+                    signals.forEach(signal => {
+                        const age = formatAge(signal.timestamp);
+                        html += `
+                            <div class="signal-item">
+                                <div class="signal-header">
+                                    <span class="signal-symbol">${signal.symbol}</span>
+                                    <span class="signal-momentum">${signal.momentum_score.toFixed(1)}</span>
+                                </div>
+                                <div class="signal-details">
+                                    <span>💰 MC: $${(signal.market_cap || 0).toLocaleString()}</span>
+                                    <span>💧 Liq: $${(signal.liquidity || 0).toLocaleString()}</span>
+                                    <span>⏰ ${age}</span>
+                                </div>
+                                <div style="margin-top: 0.5rem;">
+                                    <a href="https://dexscreener.com/solana/${signal.token_address}" target="_blank">Dexscreener</a> •
+                                    <a href="https://birdeye.so/token/${signal.token_address}" target="_blank">Birdeye</a>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    listEl.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Signals error:', error);
+                document.getElementById('signalsList').innerHTML = '<div class="empty-state"><p>Error loading signals</p></div>';
+            }
+        }
+
+        // Load Watchlist
+        async function loadWatchlist() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/watchlist`);
+                const data = await response.json();
+
+                const watchlist = data.watchlist || [];
+                const listEl = document.getElementById('watchlist');
+
+                if (watchlist.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">👁️</div><p>No tokens in watchlist</p></div>';
+                } else {
+                    let html = '';
+                    watchlist.forEach(item => {
+                        const token = item.token || {};
+                        html += `
+                            <div class="token-item">
+                                <div class="token-header">
+                                    <span><strong>${token.symbol || 'Unknown'}</strong></span>
+                                </div>
+                                <div style="font-size: 13px; color: #9ca3af; margin-top: 0.25rem;">
+                                    ${item.reason || 'No reason specified'}
+                                </div>
+                                <div style="margin-top: 0.5rem;">
+                                    <a href="https://dexscreener.com/solana/${item.token_address}" target="_blank">View</a>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    listEl.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Watchlist error:', error);
+                document.getElementById('watchlist').innerHTML = '<div class="empty-state"><p>Error loading watchlist</p></div>';
+            }
+        }
+
+        // Load Scanner Metrics
+        async function loadScannerMetrics() {
+            try {
+                const response = await fetch(`${API_BASE}/status`);
+                const data = await response.json();
+
+                const metrics = data.scanner_metrics || {};
+                const metricsEl = document.getElementById('scannerMetrics');
+
+                let html = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                        <div>
+                            <div style="font-size: 13px; color: #9ca3af;">Scan Cycles</div>
+                            <div style="font-size: 24px; font-weight: 700;">${metrics.cycles || 0}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 13px; color: #9ca3af;">Signals Found</div>
+                            <div style="font-size: 24px; font-weight: 700;">${metrics.signals || 0}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 13px; color: #9ca3af;">Avg Cycle Time</div>
+                            <div style="font-size: 24px; font-weight: 700;">${(metrics.avg_cycle_seconds || 0).toFixed(1)}s</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 13px; color: #9ca3af;">Last Cycle</div>
+                            <div style="font-size: 24px; font-weight: 700;">${(metrics.last_cycle_seconds || 0).toFixed(1)}s</div>
+                        </div>
+                    </div>
+                `;
+
+                metricsEl.innerHTML = html;
+            } catch (error) {
+                console.error('Metrics error:', error);
+                document.getElementById('scannerMetrics').innerHTML = '<div class="empty-state"><p>Error loading metrics</p></div>';
+            }
+        }
+
+        // Format age
+        function formatAge(timestamp) {
+            if (!timestamp) return 'Unknown';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+
+            if (diff < 60) return `${diff}s ago`;
+            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+            return `${Math.floor(diff / 86400)}d ago`;
+        }
+
+        // Initialize
+        loadAllData();
+        setInterval(loadAllData, 30000); // Refresh every 30 seconds
+    </script>
+</body>
+</html>
