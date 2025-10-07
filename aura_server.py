@@ -126,10 +126,17 @@ async def websocket_endpoint(websocket: WebSocket):
 # Mount Lovable dashboard static files
 app.mount("/assets", StaticFiles(directory="lovable_dashboard/dist/assets"), name="assets")
 
-# Dashboard endpoint - AURA Live Dashboard (default, cyber theme with AURA API)
+# Dashboard endpoint - AURA Chat Interface (default, ChatGPT-style with voice)
+@app.get("/")
 @app.get("/dashboard")
 async def dashboard():
-    """Serve the AURA Live Dashboard with real-time data and cyber aesthetic"""
+    """Serve the AURA Chat interface with AI voice and MCP tools"""
+    return FileResponse("dashboard/aura-chat.html")
+
+# Data dashboard (alternative, cyber theme)
+@app.get("/dashboard/live")
+async def dashboard_live():
+    """Serve the AURA Live Dashboard with real-time trading data"""
     return FileResponse("dashboard/aura-live.html")
 
 # Firecrawl-style dashboard (alternative)
@@ -152,6 +159,97 @@ async def dashboard_simple():
 
 # Mount static files for dashboard assets (if any)
 # app.mount("/dashboard/static", StaticFiles(directory="dashboard/static"), name="dashboard-static")
+
+# Chat API endpoint for AURA AI interface
+@app.post("/api/aura/chat")
+async def aura_chat(request: Request):
+    """
+    Handle chat messages from AURA AI interface
+    Uses MCP tools and Claude AI for intelligent responses
+    """
+    try:
+        from aura.mcp_telegram_handler import mcp_handler
+
+        data = await request.json()
+        message = data.get("message", "")
+
+        if not message:
+            return {"error": "No message provided"}
+
+        # Get system context
+        portfolio = db.get_portfolio_summary()
+        watchlist = db.get_watchlist()
+        signals = db.get_recent_helix_signals(hours=24, limit=5)
+
+        context = {
+            "portfolio": portfolio,
+            "watchlist": watchlist,
+            "signals": signals
+        }
+
+        # Use MCP handler for intelligent response
+        response_text = await mcp_handler.handle_message(
+            message=message,
+            context=context,
+            username="User"
+        )
+
+        return {
+            "response": response_text,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Chat API error: {e}")
+        return {
+            "response": f"⚠️ Error processing your message: {str(e)[:100]}",
+            "error": True
+        }
+
+# Voice transcription endpoint
+@app.post("/api/aura/voice")
+async def aura_voice(request: Request):
+    """Handle voice transcription from dashboard"""
+    try:
+        from openai import OpenAI
+        import tempfile
+
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if not openai_key:
+            return {"error": "Voice transcription not available"}
+
+        # Get audio file from request
+        form = await request.form()
+        audio_file = form.get("audio")
+
+        if not audio_file:
+            return {"error": "No audio file provided"}
+
+        # Save temporarily
+        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
+            content = await audio_file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        # Transcribe
+        client = OpenAI(api_key=openai_key)
+        with open(tmp_path, 'rb') as audio:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio
+            )
+
+        # Clean up
+        os.unlink(tmp_path)
+
+        return {
+            "transcription": transcript.text,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Voice API error: {e}")
+        return {"error": f"Transcription failed: {str(e)[:100]}"}
 
 # Telegram Webhook Handler with Full AI Support
 @app.post("/telegram/webhook")
