@@ -147,14 +147,15 @@ async def dashboard_simple():
 # Mount static files for dashboard assets (if any)
 # app.mount("/dashboard/static", StaticFiles(directory="dashboard/static"), name="dashboard-static")
 
-# Telegram Webhook Handler
+# Telegram Webhook Handler with Full AI Support
 @app.post("/telegram/webhook")
 async def telegram_webhook(update: dict):
-    """Handle incoming Telegram messages via webhook"""
+    """Handle incoming Telegram messages via webhook with full AI capabilities"""
     try:
         import os
         import aiohttp
         from aura.database import db
+        from datetime import datetime
 
         message = update.get('message', {})
         if not message:
@@ -162,31 +163,150 @@ async def telegram_webhook(update: dict):
 
         chat_id = message.get('chat', {}).get('id')
         text = message.get('text', '')
+        user_id = message.get('from', {}).get('id', 0)
+        username = message.get('from', {}).get('username') or message.get('from', {}).get('first_name', 'User')
 
         if not text or not chat_id:
             return {"ok": True}
 
-        logger.info(f"📱 Telegram message from {chat_id}: {text}")
+        logger.info(f"📱 Telegram message from {username} ({chat_id}): {text}")
 
-        # Simple command handling
+        # Get system context
+        portfolio = db.get_portfolio_summary()
+        watchlist = db.get_watchlist()
+        signals = db.get_recent_helix_signals(hours=24, limit=5)
+
+        # Store conversation in memory
+        try:
+            timestamp = datetime.now().isoformat()
+            with db._get_conn() as conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS conversation_log (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        username TEXT,
+                        message TEXT,
+                        message_type TEXT,
+                        portfolio_summary TEXT,
+                        signals_count INTEGER,
+                        watchlist_count INTEGER,
+                        timestamp TEXT
+                    )
+                """)
+                cur.execute("""
+                    INSERT INTO conversation_log (user_id, username, message, message_type, portfolio_summary, signals_count, watchlist_count, timestamp)
+                    VALUES (?, ?, ?, 'user', ?, ?, ?, ?)
+                """, (
+                    user_id, username, text,
+                    f"{portfolio['open_positions']} positions, ${portfolio['total_pnl_usd']:.2f} P&L",
+                    len(signals), len(watchlist), timestamp
+                ))
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Memory storage error: {e}")
+
+        # Generate intelligent response
         response_text = ""
+        text_lower = text.lower()
+
         if text.startswith('/start'):
-            response_text = "🤖 *AURA Bot Online!*\n\nSend `/portfolio` or `/signals` or just ask: how's my portfolio?"
+            response_text = "🤖 *AURA v0.3.0 - Autonomous Crypto Intelligence*\n\n"
+            response_text += "I can help you with:\n\n"
+            response_text += "💼 Portfolio: Ask 'how's my portfolio?' or use /portfolio\n"
+            response_text += "📡 Signals: Ask 'show me signals' or use /signals\n"
+            response_text += "👀 Watchlist: Ask 'what are we watching?' or use /watchlist\n\n"
+            response_text += "Just talk to me naturally - I understand context!"
+
         elif text.startswith('/portfolio'):
-            summary = db.get_portfolio_summary()
-            response_text = f"💼 Portfolio: {summary['open_positions']} open | P&L: ${summary['total_pnl_usd']:.2f} | Win rate: {summary['win_rate']:.1f}%"
+            response_text = f"💼 *Portfolio Summary*\n\n"
+            response_text += f"• Open Positions: {portfolio['open_positions']}\n"
+            response_text += f"• Portfolio Value: ${portfolio['open_value_usd']:,.2f}\n"
+            response_text += f"• Total P&L: ${portfolio['total_pnl_usd']:,.2f} ({portfolio['total_pnl_percent']:+.2f}%)\n"
+            response_text += f"• Win Rate: {portfolio['win_rate']:.1f}%"
+
         elif text.startswith('/signals'):
-            signals = db.get_recent_helix_signals(hours=24, limit=5)
-            response_text = f"📡 {len(signals)} signals in last 24h"
+            response_text = f"📡 *Recent Signals* (last 24h)\n\n"
+            if signals:
+                for sig in signals[:5]:
+                    symbol = sig.get('symbol', 'Unknown')
+                    momentum = sig.get('momentum_score', 0)
+                    address = sig.get('token_address', '')
+                    response_text += f"• [{symbol}](https://dexscreener.com/solana/{address}) - Momentum: {momentum:.1f}\n"
+                response_text += f"\n{len(signals)} total signals"
+            else:
+                response_text += "No signals in last 24h"
+
+        elif text.startswith('/watchlist'):
+            response_text = f"👀 *Watchlist* ({len(watchlist)} tokens)\n\n"
+            if watchlist:
+                for item in watchlist[:5]:
+                    symbol = item.get('symbol', 'Unknown')
+                    address = item.get('token_address', '')
+                    response_text += f"• [{symbol}](https://dexscreener.com/solana/{address})\n"
+                response_text += f"\nClick tokens to view on Dexscreener"
+            else:
+                response_text += "Watchlist is empty"
+
+        elif "portfolio" in text_lower or "pnl" in text_lower or "position" in text_lower:
+            response_text = f"💼 Current Portfolio:\n\n"
+            response_text += f"• Open Positions: {portfolio['open_positions']}\n"
+            response_text += f"• Total P&L: ${portfolio['total_pnl_usd']:,.2f}\n"
+            response_text += f"• Win Rate: {portfolio['win_rate']:.1f}%\n\n"
+            response_text += "Use /portfolio for full details"
+
+        elif "signal" in text_lower:
+            response_text = f"📡 Recent Signals: {len(signals)} in last 24h\n\n"
+            if signals:
+                for sig in signals[:3]:
+                    symbol = sig.get('symbol', 'Unknown')
+                    momentum = sig.get('momentum_score', 0)
+                    response_text += f"• {symbol}: {momentum:.1f}\n"
+                response_text += "\nUse /signals for more"
+            else:
+                response_text += "No recent signals"
+
+        elif "watch" in text_lower:
+            response_text = f"👀 Watchlist: {len(watchlist)} tokens\n\n"
+            if watchlist:
+                for item in watchlist[:3]:
+                    response_text += f"• {item.get('symbol', 'Unknown')}\n"
+                response_text += "\nUse /watchlist for full list"
+            else:
+                response_text += "Watchlist is empty"
+
         else:
-            response_text = f"🤖 Got it: {text}\n\nTry /portfolio or /signals"
+            response_text = f"🤖 *AURA Intelligence*\n\n"
+            response_text += f"I understand you're asking: _{text}_\n\n"
+            response_text += f"Current Status:\n"
+            response_text += f"💼 Portfolio: {portfolio['open_positions']} positions, ${portfolio['total_pnl_usd']:,.2f} P&L\n"
+            response_text += f"📡 Signals: {len(signals)} in last 24h\n"
+            response_text += f"👀 Watchlist: {len(watchlist)} tokens\n\n"
+            response_text += "Ask me about portfolio, signals, or watchlist!"
+
+        # Store bot response
+        try:
+            with db._get_conn() as conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    INSERT INTO conversation_log (user_id, username, message, message_type, timestamp)
+                    VALUES (?, ?, ?, 'bot', ?)
+                """, (user_id, username, response_text, datetime.now().isoformat()))
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Response memory storage error: {e}")
 
         # Send response
         bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
         if bot_token and response_text:
             async with aiohttp.ClientSession() as session:
                 url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-                await session.post(url, json={"chat_id": chat_id, "text": response_text, "parse_mode": "Markdown"})
+                await session.post(url, json={
+                    "chat_id": chat_id,
+                    "text": response_text,
+                    "parse_mode": "Markdown",
+                    "disable_web_page_preview": True
+                })
 
         return {"ok": True}
     except Exception as e:
