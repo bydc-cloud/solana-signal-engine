@@ -386,10 +386,13 @@ Ready to assist 24/7 🚀
         await update.message.reply_text(response, parse_mode='Markdown')
 
     async def handle_text_message(self, update, context):
-        """Handle natural language text messages using AI with command execution"""
+        """Handle natural language text messages using AI with command execution and memory"""
         try:
             user_message = update.message.text
-            logger.info(f"📝 Natural language message: {user_message[:50]}...")
+            user_id = update.message.from_user.id
+            username = update.message.from_user.username or update.message.from_user.first_name
+
+            logger.info(f"📝 Natural language message from {username}: {user_message[:50]}...")
 
             # Send typing indicator
             await update.message.chat.send_action("typing")
@@ -403,8 +406,15 @@ Ready to assist 24/7 🚀
             signals = db.get_recent_helix_signals(hours=24, limit=5)
             strategies = db.get_active_strategies()
 
+            # Store user interaction in memory (create entity if first time)
+            try:
+                await self._store_conversation_memory(user_id, username, user_message, portfolio, signals, watchlist)
+            except Exception as e:
+                logger.warning(f"Memory storage error: {e}")
+
             context_info = f"""
 System Context:
+- User: {username} (ID: {user_id})
 - Portfolio: {portfolio['open_positions']} open positions, ${portfolio['total_pnl_usd']:.2f} P&L, {portfolio['win_rate']:.1f}% win rate
 - Watchlist: {len(watchlist)} tokens tracked
 - Recent Signals: {len(signals)} in last 24h
@@ -416,6 +426,12 @@ User Query: {user_message}
 
             # Use AI to generate intelligent response with command routing
             response = await self._generate_ai_response_with_commands(user_message, context_info, portfolio, watchlist, signals)
+
+            # Store bot response in memory
+            try:
+                await self._store_response_memory(user_id, username, response)
+            except Exception as e:
+                logger.warning(f"Response memory storage error: {e}")
 
             await update.message.reply_text(response, parse_mode='Markdown', disable_web_page_preview=True)
 
@@ -604,6 +620,70 @@ Provide a complete, actionable response with real data."""
         watchlist = db.get_watchlist()
         signals = db.get_recent_helix_signals(hours=24, limit=5)
         return await self._generate_ai_response_with_commands(query, context, portfolio, watchlist, signals)
+
+    async def _store_conversation_memory(self, user_id: int, username: str, message: str, portfolio: dict, signals: list, watchlist: list):
+        """Store conversation in memory using database for persistence"""
+        try:
+            db = get_db()
+            timestamp = datetime.now().isoformat()
+
+            # Store in simple conversation log table
+            with db._get_conn() as conn:
+                cur = conn.cursor()
+
+                # Create conversation_log table if it doesn't exist
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS conversation_log (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        username TEXT,
+                        message TEXT,
+                        message_type TEXT,
+                        portfolio_summary TEXT,
+                        signals_count INTEGER,
+                        watchlist_count INTEGER,
+                        timestamp TEXT
+                    )
+                """)
+
+                # Insert conversation
+                cur.execute("""
+                    INSERT INTO conversation_log (user_id, username, message, message_type, portfolio_summary, signals_count, watchlist_count, timestamp)
+                    VALUES (?, ?, ?, 'user', ?, ?, ?, ?)
+                """, (
+                    user_id,
+                    username,
+                    message,
+                    f"{portfolio['open_positions']} positions, ${portfolio['total_pnl_usd']:.2f} P&L",
+                    len(signals),
+                    len(watchlist),
+                    timestamp
+                ))
+
+                conn.commit()
+                logger.info(f"✅ Stored conversation memory for {username}")
+
+        except Exception as e:
+            logger.error(f"Memory storage error: {e}")
+
+    async def _store_response_memory(self, user_id: int, username: str, response: str):
+        """Store bot response in memory"""
+        try:
+            db = get_db()
+            timestamp = datetime.now().isoformat()
+
+            with db._get_conn() as conn:
+                cur = conn.cursor()
+
+                cur.execute("""
+                    INSERT INTO conversation_log (user_id, username, message, message_type, timestamp)
+                    VALUES (?, ?, ?, 'bot', ?)
+                """, (user_id, username, response, timestamp))
+
+                conn.commit()
+
+        except Exception as e:
+            logger.error(f"Response memory storage error: {e}")
 
 
 # Singleton
