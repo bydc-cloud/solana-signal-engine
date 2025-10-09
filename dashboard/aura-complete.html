@@ -107,6 +107,38 @@
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #000; }
         ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 4px; }
+
+        /* Logs */
+        .logs-container {
+            background: #0a0a0a;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            padding: 0.5rem;
+            border-bottom: 1px solid #1a1a1a;
+        }
+        .log-time {
+            color: #666;
+            margin-right: 0.5rem;
+        }
+        .log-level {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-right: 0.5rem;
+            font-size: 11px;
+        }
+        .log-level.info { background: rgba(0, 136, 255, 0.1); color: #0088ff; }
+        .log-level.error { background: rgba(255, 68, 68, 0.1); color: #ff4444; }
+        .log-level.warning { background: rgba(255, 136, 0, 0.1); color: #ff8800; }
+        .log-level.success { background: rgba(0, 255, 136, 0.1); color: #00ff88; }
+
         ::-webkit-scrollbar-thumb:hover { background: #2a2a2a; }
     </style>
 </head>
@@ -123,6 +155,8 @@
                 <button class="tab" onclick="switchTab('wallets')">Wallets</button>
                 <button class="tab" onclick="switchTab('watchlist')">Watchlist</button>
                 <button class="tab" onclick="switchTab('portfolio')">Portfolio</button>
+                <button class="tab" onclick="switchTab('logs')">Logs</button>
+                <button class="tab" onclick="switchTab('twitter')">Twitter/X</button>
             </div>
         </div>
 
@@ -232,14 +266,20 @@
             if (tabName === 'wallets') loadWallets();
             if (tabName === 'watchlist') loadWatchlist();
             if (tabName === 'portfolio') loadPortfolio();
+            if (tabName === 'logs') loadLogs();
+            if (tabName === 'twitter') loadTwitter();
         }
 
         // Voice Input
-        let voiceTimer = null;
+                let voiceTimer = null;
         let voiceStartTime = 0;
         let audioContext = null;
         let analyser = null;
         let animationId = null;
+        let silenceTimeout = null;
+        let lastSoundTime = 0;
+        const SILENCE_THRESHOLD = 30;
+        const SILENCE_DURATION = 1500;
 
         async function toggleVoice() {
             const voiceBtn = document.getElementById('voiceBtn');
@@ -268,6 +308,7 @@
                         if (audioContext) audioContext.close();
                         stopVisualization();
                         stopTimer();
+                        stopSilenceDetection();
                         await transcribeAudio(audioBlob);
                     };
 
@@ -275,9 +316,10 @@
                     voiceBtn.classList.add('recording');
                     voiceOverlay.classList.add('active');
 
-                    // Start visualizer and timer
+                    // Start visualizer, timer, and silence detection
                     startVisualization();
                     startTimer();
+                    startSilenceDetection();
                 } catch (error) {
                     console.error('Microphone error:', error);
                     alert('Microphone access denied. Please enable microphone permissions.');
@@ -297,6 +339,7 @@
             if (audioContext) audioContext.close();
             stopVisualization();
             stopTimer();
+            stopSilenceDetection();
             document.getElementById('voiceBtn').classList.remove('recording');
             document.getElementById('voiceRecording').classList.remove('active');
         }
@@ -349,6 +392,46 @@
             document.querySelectorAll('.voice-bar').forEach(bar => {
                 bar.style.height = '5px';
             });
+        }
+
+
+        function startSilenceDetection() {
+            lastSoundTime = Date.now();
+
+            function checkSilence() {
+                if (!analyser || !mediaRecorder || mediaRecorder.state !== 'recording') {
+                    return;
+                }
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+
+                if (average > SILENCE_THRESHOLD) {
+                    lastSoundTime = Date.now();
+                } else {
+                    const silenceDuration = Date.now() - lastSoundTime;
+                    if (silenceDuration > SILENCE_DURATION && (Date.now() - voiceStartTime) > 1000) {
+                        console.log('Auto-stopping due to silence');
+                        if (mediaRecorder && mediaRecorder.state === 'recording') {
+                            mediaRecorder.stop();
+                            document.getElementById('voiceBtn').classList.remove('recording');
+                        }
+                        return;
+                    }
+                }
+
+                silenceTimeout = setTimeout(checkSilence, 100);
+            }
+
+            checkSilence();
+        }
+
+        function stopSilenceDetection() {
+            if (silenceTimeout) {
+                clearTimeout(silenceTimeout);
+                silenceTimeout = null;
+            }
         }
 
         async function transcribeAudio(audioBlob) {
@@ -540,6 +623,81 @@
             if (diff < 3600) return `${Math.floor(diff / 60)}m`;
             if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
             return `${Math.floor(diff / 86400)}d`;
+        }
+
+
+        // Logs Tab
+        async function loadLogs() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/logs?limit=100`);
+                const data = await response.json();
+                const logs = data.logs || [];
+
+                const container = document.getElementById('logsContainer');
+                if (logs.length === 0) {
+                    container.innerHTML = '<div class="log-entry"><span class="log-time">No logs available</span></div>';
+                } else {
+                    container.innerHTML = logs.map(log => `
+                        <div class="log-entry">
+                            <span class="log-time">${log.timestamp}</span>
+                            <span class="log-level ${log.level}">${log.level.toUpperCase()}</span>
+                            ${log.message}
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Logs error:', error);
+            }
+        }
+
+        // Twitter/X Tab
+        async function loadTwitter() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/social/momentum`);
+                const data = await response.json();
+                const trends = data.trends || [];
+
+                const feedEl = document.getElementById('twitterFeed');
+                if (trends.length === 0) {
+                    feedEl.innerHTML = '<div class="empty-state"><div class="empty-text">No trending tokens</div></div>';
+                } else {
+                    let html = '';
+                    trends.forEach(trend => {
+                        const sentimentClass = trend.sentiment > 0.6 ? 'positive' : 'negative';
+                        html += `<div class="card">
+                            <div class="card-header">
+                                <div class="card-title">$${trend.symbol}</div>
+                                <div class="card-badge">${trend.mentions} mentions</div>
+                            </div>
+                            <div class="card-meta">
+                                <div class="meta-item">
+                                    <div class="meta-label">Sentiment</div>
+                                    <div class="meta-value ${sentimentClass}">
+                                        ${(trend.sentiment * 100).toFixed(0)}%
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-label">24h Change</div>
+                                    <div class="meta-value ${trend.change_24h > 0 ? 'positive' : 'negative'}">
+                                        ${trend.change_24h > 0 ? '+' : ''}${trend.change_24h.toFixed(1)}%
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-label">Volume</div>
+                                    <div class="meta-value">$${(trend.volume_24h / 1000).toFixed(0)}K</div>
+                                </div>
+                            </div>
+                            <div class="card-actions">
+                                <a href="https://twitter.com/search?q=%24${trend.symbol}" target="_blank" class="card-link">View Tweets</a>
+                                <a href="https://dexscreener.com/solana/${trend.symbol}" target="_blank" class="card-link">Chart</a>
+                            </div>
+                        </div>`;
+                    });
+                    feedEl.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Twitter error:', error);
+            }
         }
 
         // Auto-refresh

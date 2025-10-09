@@ -171,34 +171,66 @@ async def dashboard_simple():
 @app.post("/api/aura/voice")
 async def aura_voice(request: Request):
     """Handle voice transcription from dashboard"""
+    import tempfile
+    import os as os_module
+
     try:
         from openai import OpenAI
-        import tempfile
 
         openai_key = os.getenv("OPENAI_API_KEY")
         if not openai_key:
-            return {"error": "Voice transcription not available"}
+            logger.error("OpenAI API key not configured")
+            return {"error": "Voice transcription not available", "transcription": None}
 
         # Get audio file from request
         form = await request.form()
         audio_file = form.get("audio")
 
         if not audio_file:
-            return {"error": "No audio file provided"}
+            logger.error("No audio file in request")
+            return {"error": "No audio file provided", "transcription": None}
+
+        # Read audio content
+        content = await audio_file.read()
+        file_size = len(content)
+
+        logger.info(f"Received audio file: {file_size} bytes, type: {audio_file.content_type}")
+
+        if file_size < 100:
+            logger.error(f"Audio file too small: {file_size} bytes")
+            return {"error": "Audio file is too small or empty", "transcription": None}
+
+        # Determine file extension based on content type
+        content_type = audio_file.content_type or ""
+        if "webm" in content_type:
+            ext = ".webm"
+        elif "mp4" in content_type or "m4a" in content_type:
+            ext = ".m4a"
+        elif "wav" in content_type:
+            ext = ".wav"
+        elif "mpeg" in content_type or "mp3" in content_type:
+            ext = ".mp3"
+        else:
+            ext = ".webm"  # Default
+
+        logger.info(f"Using file extension: {ext}")
 
         # Save temporarily
-        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
-            content = await audio_file.read()
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
 
-        # Transcribe
-        client = OpenAI(api_key=openai_key)
-        with open(tmp_path, 'rb') as audio:
-            transcript = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio
-            )
+        try:
+            # Transcribe with Whisper
+            client = OpenAI(api_key=openai_key)
+            logger.info(f"Sending to Whisper: {tmp_path}")
+
+            with open(tmp_path, 'rb') as audio:
+                transcript = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio,
+                    language="en"  # Specify English for better accuracy
+                )
 
         # Clean up
         os.unlink(tmp_path)
@@ -211,6 +243,81 @@ async def aura_voice(request: Request):
     except Exception as e:
         logger.error(f"Voice API error: {e}")
         return {"error": f"Transcription failed: {str(e)[:100]}"}
+
+# Logs API endpoint
+@app.get("/api/aura/logs")
+async def get_logs(limit: int = 100):
+    """Get recent system logs"""
+    try:
+        log_file = "momentum_scanner.log"
+        if not os.path.exists(log_file):
+            return {"logs": [], "count": 0}
+
+        with open(log_file, 'r') as f:
+            lines = f.readlines()[-limit:]
+
+        logs = []
+        for line in lines:
+            # Parse log format: 2025-10-06 18:30:45,123 - INFO - Message
+            try:
+                parts = line.split(' - ', 2)
+                if len(parts) >= 3:
+                    timestamp = parts[0].split(',')[0]  # Remove milliseconds
+                    level = parts[1].strip().lower()
+                    message = parts[2].strip()
+                    logs.append({
+                        'timestamp': timestamp,
+                        'level': level,
+                        'message': message
+                    })
+            except:
+                continue
+
+        return {"logs": logs, "count": len(logs)}
+    except Exception as e:
+        logger.error(f"Logs API error: {e}")
+        return {"error": str(e), "logs": [], "count": 0}
+
+# Social Momentum API endpoint
+@app.get("/api/aura/social/momentum")
+async def get_social_momentum():
+    """Get trending tokens from social media"""
+    # TODO: Integrate with Twitter API or social sentiment service
+    # For now, return mock data showing trending Solana tokens
+    return {
+        "trends": [
+            {
+                "symbol": "BONK",
+                "mentions": 1234,
+                "sentiment": 0.75,
+                "change_24h": 15.3,
+                "volume_24h": 1500000
+            },
+            {
+                "symbol": "WIF",
+                "mentions": 987,
+                "sentiment": 0.82,
+                "change_24h": 22.1,
+                "volume_24h": 980000
+            },
+            {
+                "symbol": "JUP",
+                "mentions": 856,
+                "sentiment": 0.68,
+                "change_24h": -5.2,
+                "volume_24h": 2100000
+            },
+            {
+                "symbol": "PYTH",
+                "mentions": 743,
+                "sentiment": 0.71,
+                "change_24h": 8.7,
+                "volume_24h": 890000
+            }
+        ],
+        "count": 4,
+        "last_updated": datetime.now().isoformat()
+    }
 
 # Telegram Webhook Handler with Full AI Support
 @app.post("/telegram/webhook")

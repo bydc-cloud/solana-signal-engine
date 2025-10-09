@@ -1370,6 +1370,40 @@ class RealityMomentumScanner:
                             'risk_score': risk_score,
                             'sent_time': sent_at.isoformat()
                         })
+                        # Store in AURA database for dashboard
+                        try:
+                            import sqlite3
+                            import json as json_module
+                            conn = sqlite3.connect('aura.db')
+                            cur = conn.cursor()
+
+                            cur.execute("""
+                                INSERT INTO helix_signals
+                                (token_address, symbol, momentum_score, market_cap, liquidity, volume_24h, price, timestamp, metadata)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                address,
+                                symbol,
+                                signal_strength,
+                                mcap,
+                                token.get('liquidity', 0),
+                                volume,
+                                price,
+                                datetime.now().isoformat(),
+                                json_module.dumps({
+                                    'risk_score': risk_score,
+                                    'buyer_dominance': dominance,
+                                    'narrative': narrative,
+                                    'discovery': strategy
+                                })
+                            ))
+
+                            conn.commit()
+                            conn.close()
+                            logger.info(f"✅ Stored signal in AURA database: {symbol}")
+                        except Exception as db_error:
+                            logger.error(f"Failed to store signal in database: {db_error}")
+
                         if len(self.signal_history) > 500:
                             self.signal_history = self.signal_history[-500:]
 
