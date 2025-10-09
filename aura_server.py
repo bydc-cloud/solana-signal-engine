@@ -253,6 +253,70 @@ async def aura_voice(request: Request):
         logger.error(f"Voice API error: {e}")
         return {"error": f"Transcription failed: {str(e)[:100]}"}
 
+# Dashboard data endpoints
+@app.get("/api/aura/scanner/signals")
+async def get_scanner_signals(hours: int = 24, limit: int = 50):
+    """Get recent scanner signals"""
+    try:
+        from aura.database import db
+        signals = db.get_recent_helix_signals(hours=hours, limit=limit)
+        return {"signals": signals, "count": len(signals)}
+    except Exception as e:
+        logger.error(f"Signals API error: {e}")
+        return {"error": str(e), "signals": [], "count": 0}
+
+@app.get("/api/aura/wallets")
+async def get_tracked_wallets():
+    """Get tracked whale wallets"""
+    try:
+        import sqlite3
+        conn = sqlite3.connect('aura.db')
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT address, win_rate, avg_pnl, total_trades, successful_trades,
+                   total_pnl, last_updated, tokens_traded
+            FROM tracked_wallets
+            WHERE is_active = 1
+            ORDER BY total_pnl DESC
+            LIMIT 10
+        """)
+
+        wallets = []
+        for row in cur.fetchall():
+            wallets.append({
+                'address': row[0],
+                'win_rate': row[1],
+                'avg_pnl': row[2],
+                'total_trades': row[3],
+                'successful_trades': row[4],
+                'total_pnl': row[5],
+                'last_updated': row[6],
+                'tokens_traded': row[7].split(',') if row[7] else []
+            })
+
+        conn.close()
+        return {"wallets": wallets, "count": len(wallets)}
+    except Exception as e:
+        logger.error(f"Wallets API error: {e}")
+        return {"error": str(e), "wallets": [], "count": 0}
+
+@app.get("/api/aura/portfolio")
+async def get_aura_portfolio():
+    """Get portfolio summary"""
+    try:
+        from aura.database import db
+        portfolio = db.get_portfolio_summary()
+        positions = db.get_open_positions()
+        return {
+            "portfolio": portfolio,
+            "positions": positions,
+            "count": len(positions)
+        }
+    except Exception as e:
+        logger.error(f"Portfolio API error: {e}")
+        return {"error": str(e), "portfolio": {}, "positions": [], "count": 0}
+
 # Logs API endpoint
 @app.get("/api/aura/logs")
 async def get_logs(limit: int = 100):
@@ -576,72 +640,104 @@ async def telegram_webhook(update: dict):
                 for sig in signals[:3]:
                     symbol = sig.get('symbol', 'Unknown')
                     momentum = sig.get('momentum_score', 0)
-                    response_text += f"• {symbol}: {momentum:.1f}\n"
-                response_text += "\nUse /signals for more"
+                    response_text += f"• {symbol} - Momentum: {momentum:.1f}\n"
+                response_text += "\nUse /signals for full list"
             else:
                 response_text += "No recent signals"
 
-        elif "watch" in text_lower:
-            response_text = f"👀 Watchlist: {len(watchlist)} tokens\n\n"
-            if watchlist:
-                for item in watchlist[:3]:
-                    response_text += f"• {item.get('symbol', 'Unknown')}\n"
-                response_text += "\nUse /watchlist for full list"
-            else:
-                response_text += "Watchlist is empty"
-
-        elif "price" in text_lower or "chart" in text_lower or "token" in text_lower:
-            # Try to extract token symbol/address from message
-            words = text.split()
-            potential_symbol = None
-            for word in words:
-                if word.isupper() and len(word) <= 10:  # Likely a token symbol
-                    potential_symbol = word
-                    break
-
-            if potential_symbol:
-                # Look up token in watchlist or signals
-                token_info = None
-                for item in watchlist:
-                    if item.get('symbol', '').upper() == potential_symbol:
-                        token_info = item
-                        break
-
-                if not token_info and signals:
-                    for sig in signals:
-                        if sig.get('symbol', '').upper() == potential_symbol:
-                            token_info = sig
-                            break
-
-                if token_info:
-                    address = token_info.get('token_address', '')
-                    symbol = token_info.get('symbol', potential_symbol)
-                    response_text = f"📊 *{symbol}* Token Info\n\n"
-
-                    if 'price_usd' in token_info:
-                        response_text += f"💰 Price: ${token_info['price_usd']:.8f}\n"
-                    if 'market_cap' in token_info:
-                        response_text += f"📈 Market Cap: ${token_info['market_cap']:,.0f}\n"
-                    if 'volume_24h' in token_info:
-                        response_text += f"💹 24h Volume: ${token_info['volume_24h']:,.0f}\n"
-                    if 'momentum_score' in token_info:
-                        response_text += f"🚀 Momentum: {token_info['momentum_score']:.1f}\n"
-
-                    response_text += f"\n[View on Dexscreener](https://dexscreener.com/solana/{address})"
-                else:
-                    response_text = f"🔍 Token {potential_symbol} not found in watchlist or recent signals.\n\n"
-                    response_text += "Add tokens to watchlist to track them!"
-            else:
-                response_text = "🔍 Please specify a token symbol (e.g., 'show me SOL price')"
-
+        # FULL CONVERSATIONAL AI - Claude Integration
         else:
-            response_text = f"🤖 *AURA Intelligence*\n\n"
-            response_text += f"I understand you're asking: _{text}_\n\n"
-            response_text += f"Current Status:\n"
-            response_text += f"💼 Portfolio: {portfolio['open_positions']} positions, ${portfolio['total_pnl_usd']:,.2f} P&L\n"
-            response_text += f"📡 Signals: {len(signals)} in last 24h\n"
-            response_text += f"👀 Watchlist: {len(watchlist)} tokens\n\n"
-            response_text += "Ask me about portfolio, signals, watchlist, or token prices!"
+            # Use Claude for natural conversation
+            try:
+                import anthropic
+                anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+
+                if not anthropic_key:
+                    # Fallback to OpenAI if no Anthropic key
+                    openai_key = os.getenv("OPENAI_API_KEY")
+                    if openai_key:
+                        from openai import OpenAI
+                        client = OpenAI(api_key=openai_key)
+
+                        system_context = f"""You are AURA, an autonomous trading intelligence system for Solana memecoins.
+
+Current Portfolio Status:
+- Open Positions: {portfolio['open_positions']}
+- Total P&L: ${portfolio['total_pnl_usd']:.2f} ({portfolio['total_pnl_percent']:+.1f}%)
+- Win Rate: {portfolio['win_rate']:.1f}%
+
+Recent Signals: {len(signals)} in last 24h
+Watchlist: {len(watchlist)} tokens
+
+You can discuss:
+- Trading strategies and market analysis
+- Portfolio performance and risk management
+- Recent signals and token opportunities
+- Technical questions about Solana/DeFi
+- System status and deployment
+
+Respond naturally and helpfully. Keep responses concise (2-4 sentences). Use emojis sparingly."""
+
+                        response = client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[
+                                {"role": "system", "content": system_context},
+                                {"role": "user", "content": text}
+                            ],
+                            max_tokens=300,
+                            temperature=0.7
+                        )
+
+                        response_text = response.choices[0].message.content
+                        logger.info(f"🤖 GPT-4o-mini response generated")
+                    else:
+                        response_text = "🤖 I can help with:\n\n"
+                        response_text += "Trading: /portfolio /signals /watchlist\n"
+                        response_text += "System: /status /deploy /changes\n\n"
+                        response_text += "Natural conversation requires ANTHROPIC_API_KEY or OPENAI_API_KEY"
+                else:
+                    # Use Claude (preferred)
+                    client = anthropic.Anthropic(api_key=anthropic_key)
+
+                    system_context = f"""You are AURA, an autonomous trading intelligence system for Solana memecoins.
+
+Current Portfolio Status:
+- Open Positions: {portfolio['open_positions']}
+- Total P&L: ${portfolio['total_pnl_usd']:.2f} ({portfolio['total_pnl_percent']:+.1f}%)
+- Win Rate: {portfolio['win_rate']:.1f}%
+
+Recent Signals: {len(signals)} in last 24h
+Watchlist: {len(watchlist)} tokens
+
+You can discuss:
+- Trading strategies and market analysis
+- Portfolio performance and risk management
+- Recent signals and token opportunities
+- Technical questions about Solana/DeFi
+- System status and deployment
+
+Respond naturally and helpfully. Keep responses concise (2-4 sentences) formatted for Telegram. Use emojis sparingly."""
+
+                    message = client.messages.create(
+                        model="claude-3-5-sonnet-20241022",
+                        max_tokens=300,
+                        system=system_context,
+                        messages=[
+                            {"role": "user", "content": text}
+                        ]
+                    )
+
+                    response_text = message.content[0].text
+                    logger.info(f"🤖 Claude response generated")
+
+            except Exception as e:
+                logger.error(f"AI response error: {e}")
+                response_text = f"🤖 I understand you're asking about: _{text}_\n\n"
+                response_text += "I can help with:\n"
+                response_text += "• /portfolio - View positions\n"
+                response_text += "• /signals - Recent opportunities\n"
+                response_text += "• /status - System status\n\n"
+                response_text += "For full AI chat, set ANTHROPIC_API_KEY or OPENAI_API_KEY"
 
         # Store bot response
         try:
