@@ -232,13 +232,20 @@ async def aura_voice(request: Request):
                     language="en"  # Specify English for better accuracy
                 )
 
-        # Clean up
-        os.unlink(tmp_path)
+            # Clean up
+            os.unlink(tmp_path)
 
-        return {
-            "transcription": transcript.text,
-            "timestamp": datetime.now().isoformat()
-        }
+            return {
+                "transcription": transcript.text,
+                "timestamp": datetime.now().isoformat()
+            }
+        finally:
+            # Ensure cleanup even on error
+            if os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except:
+                    pass
 
     except Exception as e:
         logger.error(f"Voice API error: {e}")
