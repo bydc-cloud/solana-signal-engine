@@ -253,6 +253,49 @@ async def aura_voice(request: Request):
         logger.error(f"Voice API error: {e}")
         return {"error": f"Transcription failed: {str(e)[:100]}"}
 
+# AURA Live System Endpoints
+@app.get("/api/aura/live/status")
+async def get_live_status():
+    """Get AURA live system status"""
+    try:
+        from aura.live_system import get_live_system
+
+        system = await get_live_system()
+        status = await system.get_system_status()
+
+        return {"success": True, "status": status}
+    except Exception as e:
+        logger.error(f"Live status error: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/aura/live/analyze/{token_address}")
+async def analyze_token_live(token_address: str):
+    """Perform live analysis on a token"""
+    try:
+        from aura.live_system import get_live_system
+
+        system = await get_live_system()
+        analysis = await system.analyze_token_live(token_address)
+
+        return {"success": True, "analysis": analysis}
+    except Exception as e:
+        logger.error(f"Live analysis error: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/aura/live/config")
+async def get_live_config():
+    """Get live system configuration"""
+    try:
+        from aura_live_config import AuraLiveConfig
+
+        config = AuraLiveConfig()
+        summary = config.get_configuration_summary()
+
+        return {"success": True, "config": summary}
+    except Exception as e:
+        logger.error(f"Live config error: {e}")
+        return {"success": False, "error": str(e)}
+
 # Railway initialization endpoint
 @app.post("/api/aura/init")
 async def initialize_railway():
