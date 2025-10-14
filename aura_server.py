@@ -485,35 +485,59 @@ async def get_scanner_signals(hours: int = 24, limit: int = 50):
 
 @app.get("/api/aura/wallets")
 async def get_tracked_wallets():
-    """Get tracked whale wallets"""
+    """Get tracked whale wallets from both tables"""
     try:
         import sqlite3
         conn = sqlite3.connect('aura.db')
         cur = conn.cursor()
 
+        # Try live_whale_wallets first (156 wallets)
         cur.execute("""
-            SELECT address, win_rate, avg_pnl, total_trades, successful_trades,
-                   total_pnl, last_updated, tokens_traded
-            FROM tracked_wallets
-            WHERE is_active = 1
-            ORDER BY total_pnl DESC
-            LIMIT 10
+            SELECT wallet_address, nickname, min_tx_value_usd, total_alerts_sent, added_at
+            FROM live_whale_wallets
+            WHERE track_enabled = 1
+            ORDER BY total_alerts_sent DESC
+            LIMIT 50
         """)
 
         wallets = []
         for row in cur.fetchall():
             wallets.append({
                 'address': row[0],
-                'win_rate': row[1],
-                'avg_pnl': row[2],
-                'total_trades': row[3],
-                'successful_trades': row[4],
-                'total_pnl': row[5],
-                'last_updated': row[6],
-                'tokens_traded': row[7].split(',') if row[7] else []
+                'nickname': row[1] or 'Unknown',
+                'min_tx': row[2],
+                'alerts': row[3],
+                'added': row[4],
+                'win_rate': 0,  # Placeholder
+                'total_trades': 0  # Placeholder
             })
 
+        # If no live wallets, try tracked_wallets table
+        if not wallets:
+            cur.execute("""
+                SELECT address, win_rate, avg_pnl, total_trades, successful_trades,
+                       total_pnl, last_updated, tokens_traded
+                FROM tracked_wallets
+                WHERE is_active = 1
+                ORDER BY total_pnl DESC
+                LIMIT 10
+            """)
+
+            for row in cur.fetchall():
+                wallets.append({
+                    'address': row[0],
+                    'nickname': 'Whale',
+                    'win_rate': row[1],
+                    'avg_pnl': row[2],
+                    'total_trades': row[3],
+                    'successful_trades': row[4],
+                    'total_pnl': row[5],
+                    'last_updated': row[6],
+                    'tokens_traded': row[7].split(',') if row[7] else []
+                })
+
         conn.close()
+        logger.info(f"Returning {len(wallets)} wallets")
         return {"wallets": wallets, "count": len(wallets)}
     except Exception as e:
         logger.error(f"Wallets API error: {e}")
