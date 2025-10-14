@@ -234,15 +234,19 @@ async def aura_voice(request: Request):
 
         try:
             # Transcribe with Whisper
+            logger.info(f"Creating OpenAI client with key: {openai_key[:12]}...")
             client = OpenAI(api_key=openai_key)
-            logger.info(f"Sending to Whisper: {tmp_path}")
+            logger.info(f"Client created successfully")
+            logger.info(f"Sending to Whisper: {tmp_path} ({os.path.getsize(tmp_path)} bytes)")
 
             with open(tmp_path, 'rb') as audio:
+                logger.info("Calling Whisper API...")
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio,
                     language="en"  # Specify English for better accuracy
                 )
+                logger.info(f"Whisper success: {transcript.text[:50]}...")
 
             # Clean up
             os.unlink(tmp_path)
@@ -260,8 +264,15 @@ async def aura_voice(request: Request):
                     pass
 
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         logger.error(f"Voice API error: {e}")
-        return {"error": f"Transcription failed: {str(e)[:100]}"}
+        logger.error(f"Full trace: {error_trace}")
+        return {
+            "error": f"Could not transcribe audio: {str(e)[:200]}",
+            "transcription": None,
+            "details": str(e)
+        }
 
 # AURA Live System Endpoints
 @app.get("/api/aura/live/status")
