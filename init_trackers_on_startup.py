@@ -11,11 +11,20 @@ def check_and_load():
     """Check if trackers are loaded, if not, load them"""
     try:
         if not os.path.exists('aura.db'):
-            print("Database doesn't exist yet, skipping tracker init")
+            print("⚠️  Database doesn't exist yet, will load trackers after init")
             return
 
         conn = sqlite3.connect('aura.db', timeout=10)
         cur = conn.cursor()
+
+        # Check if tables exist
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('ct_monitors', 'live_whale_wallets')")
+        tables = [row[0] for row in cur.fetchall()]
+
+        if 'ct_monitors' not in tables or 'live_whale_wallets' not in tables:
+            print(f"⚠️  Tables don't exist yet (found: {tables}), will load after init")
+            conn.close()
+            return
 
         # Check if trackers already loaded
         cur.execute("SELECT COUNT(*) FROM ct_monitors")
@@ -29,7 +38,7 @@ def check_and_load():
             conn.close()
             return
 
-        print(f"Loading trackers... (current: {ct_count} CT, {wallet_count} wallets)")
+        print(f"📡 Loading trackers... (current: {ct_count} CT, {wallet_count} wallets)")
         conn.close()
 
         # Run the batch loading script
