@@ -147,13 +147,19 @@ async def dashboard_live():
     """Serve the AURA Live Dashboard with real-time trading data"""
     return FileResponse("dashboard/aura-live.html")
 
-# Jarvis voice interface (full-screen)
+# Jarvis voice interface (full-screen) - V3 FRIENDLY CHAT UI
 @app.get("/dashboard/jarvis")
 @app.get("/dashboard/aura-jarvis.html")
 @app.get("/jarvis")
 async def dashboard_jarvis():
-    """Serve the full-screen Jarvis-style voice interface"""
-    return FileResponse("dashboard/aura-jarvis-v2.html")  # Using v2 with browser speech + ElevenLabs
+    """Serve the friendly chat-style AURA interface (V3)"""
+    return FileResponse("dashboard/aura-jarvis-v3.html")  # V3: Friendly chat UI with conversation history
+
+# Jarvis v2 (full-screen futuristic)
+@app.get("/jarvis/v2")
+async def dashboard_jarvis_v2():
+    """Serve Jarvis v2 (futuristic full-screen)"""
+    return FileResponse("dashboard/aura-jarvis-v2.html")
 
 # Jarvis v1 (OpenAI Whisper - requires credits)
 @app.get("/jarvis/v1")
@@ -331,6 +337,72 @@ async def elevenlabs_tts(request: Request):
     except Exception as e:
         logger.error(f"ElevenLabs TTS error: {e}")
         return {"error": str(e)}
+
+@app.post("/api/aura/chat")
+async def aura_chat(request: Request):
+    """Fast AI chat endpoint using Claude Haiku for quick responses"""
+    try:
+        data = await request.json()
+        query = data.get("query", "")
+
+        if not query:
+            return {"message": "I'm listening. What would you like to know?"}
+
+        # Use Claude Haiku for FAST responses (under 1 second)
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+        if not anthropic_key:
+            logger.error("Anthropic API key not configured")
+            return {"message": "I'm having trouble accessing my AI capabilities right now."}
+
+        import aiohttp
+
+        # Build context about AURA system
+        system_prompt = """You are AURA, an AI trading assistant for Solana meme coins.
+
+You have access to:
+- Real-time momentum scanner tracking 300+ tokens
+- 162 whale wallets being monitored
+- 448 crypto Twitter influencers being tracked
+- Live market data and signals
+
+Keep responses SHORT (1-2 sentences max). Be direct and helpful. You can:
+- Report on recent signals
+- Check wallet activity
+- Analyze tokens
+- Explain market momentum
+
+Current time: """ + str(datetime.now())
+
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "x-api-key": anthropic_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        payload = {
+            "model": "claude-3-5-haiku-20241022",  # FASTEST Claude model
+            "max_tokens": 150,  # Short responses only
+            "temperature": 0.7,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": query}]
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    message = result.get("content", [{}])[0].get("text", "I understand.")
+                    return {"message": message, "response": message}
+                else:
+                    error_text = await response.text()
+                    logger.error(f"Claude API error: {response.status} - {error_text}")
+                    return {"message": "I'm having trouble processing that request."}
+
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {"message": "I encountered an error. Please try again."}
 
 # Debug endpoint to check OpenAI key
 @app.get("/api/aura/debug/openai")
