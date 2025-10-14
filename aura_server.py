@@ -182,7 +182,9 @@ async def aura_voice(request: Request):
         openai_key = os.getenv("OPENAI_API_KEY")
         if not openai_key:
             logger.error("OpenAI API key not configured")
-            return {"error": "Voice transcription not available", "transcription": None}
+            return {"error": "Voice transcription not available - API key missing", "transcription": None}
+
+        logger.info(f"OpenAI key found: {openai_key[:8]}...")
 
         # Get audio file from request
         form = await request.form()

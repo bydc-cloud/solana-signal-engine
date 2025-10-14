@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA - Voice Interface</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background: #000;
+            color: #00ff88;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Animated background grid */
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(0, 255, 136, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 136, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            z-index: 0;
+        }
+
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(60deg) translateZ(0); }
+            100% { transform: perspective(500px) rotateX(60deg) translateZ(50px); }
+        }
+
+        /* Main container */
+        .voice-interface {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 2rem;
+        }
+
+        /* AI Orb - Main focal point */
+        .ai-orb {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin-bottom: 3rem;
+        }
+
+        .orb-core {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle, rgba(0, 255, 136, 0.4), rgba(0, 255, 136, 0) 70%);
+            border-radius: 50%;
+            animation: orbPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes orbPulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.7; }
+        }
+
+        .orb-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px solid rgba(0, 255, 136, 0.3);
+            border-radius: 50%;
+            animation: ringExpand 3s ease-out infinite;
+        }
+
+        .orb-ring:nth-child(2) { width: 180px; height: 180px; animation-delay: 0s; }
+        .orb-ring:nth-child(3) { width: 220px; height: 220px; animation-delay: 0.5s; }
+        .orb-ring:nth-child(4) { width: 260px; height: 260px; animation-delay: 1s; }
+        .orb-ring:nth-child(5) { width: 300px; height: 300px; animation-delay: 1.5s; }
+
+        @keyframes ringExpand {
+            0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+            50% { opacity: 0.5; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+
+        /* Waveform visualization */
+        .waveform {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 100px;
+            margin-bottom: 2rem;
+        }
+
+        .wave-bar {
+            width: 4px;
+            height: 10px;
+            background: linear-gradient(180deg, #00ff88 0%, rgba(0, 255, 136, 0.3) 100%);
+            border-radius: 2px;
+            animation: waveIdle 1.5s ease-in-out infinite;
+        }
+
+        .wave-bar:nth-child(odd) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(even) { animation-delay: 0.3s; }
+
+        @keyframes waveIdle {
+            0%, 100% { height: 10px; }
+            50% { height: 30px; }
+        }
+
+        .waveform.active .wave-bar {
+            animation: waveActive 0.3s ease-in-out infinite;
+        }
+
+        @keyframes waveActive {
+            0%, 100% { height: 20px; }
+            50% { height: 80px; }
+        }
+
+        /* Status text */
+        .status-text {
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .status-subtext {
+            font-size: 1rem;
+            font-weight: 400;
+            text-align: center;
+            color: rgba(0, 255, 136, 0.6);
+            margin-bottom: 3rem;
+        }
+
+        /* Transcript display */
+        .transcript {
+            max-width: 800px;
+            text-align: center;
+            font-size: 1.2rem;
+            line-height: 1.8;
+            color: #fff;
+            margin-bottom: 2rem;
+            min-height: 100px;
+            padding: 2rem;
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Control buttons */
+        .controls {
+            display: flex;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .control-btn {
+            padding: 1rem 2rem;
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid #00ff88;
+            border-radius: 50px;
+            color: #00ff88;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .control-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.4);
+            transform: scale(1.05);
+        }
+
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+
+        .control-btn.primary {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .control-btn.primary:hover {
+            background: #00ffaa;
+            box-shadow: 0 0 40px rgba(0, 255, 136, 0.6);
+        }
+
+        /* Recording state */
+        body.recording .orb-core {
+            animation: orbRecording 0.5s ease-in-out infinite;
+        }
+
+        @keyframes orbRecording {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); background: radial-gradient(circle, rgba(255, 0, 0, 0.4), rgba(255, 0, 0, 0) 70%); }
+            50% { transform: translate(-50%, -50%) scale(1.3); background: radial-gradient(circle, rgba(255, 0, 0, 0.6), rgba(255, 0, 0, 0) 70%); }
+        }
+
+        /* Processing state */
+        body.processing .orb-core {
+            animation: orbProcessing 1s linear infinite;
+        }
+
+        @keyframes orbProcessing {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* Speaking state */
+        body.speaking .orb-core {
+            animation: orbSpeaking 0.3s ease-in-out infinite;
+        }
+
+        @keyframes orbSpeaking {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.4); opacity: 0.8; }
+        }
+
+        /* Exit button */
+        .exit-btn {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .exit-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            transform: rotate(90deg);
+        }
+
+        /* Hidden */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated background -->
+    <div class="grid-bg"></div>
+
+    <!-- Voice interface -->
+    <div class="voice-interface">
+        <!-- Exit button -->
+        <button class="exit-btn" onclick="exitVoiceMode()">✕</button>
+
+        <!-- AI Orb -->
+        <div class="ai-orb">
+            <div class="orb-ring"></div>
+            <div class="orb-ring"></div>
+            <div class="orb-ring"></div>
+            <div class="orb-ring"></div>
+            <div class="orb-core"></div>
+        </div>
+
+        <!-- Waveform -->
+        <div class="waveform" id="waveform">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+        </div>
+
+        <!-- Status -->
+        <div class="status-text" id="statusText">READY</div>
+        <div class="status-subtext" id="statusSubtext">Click "Start" to begin voice conversation</div>
+
+        <!-- Transcript -->
+        <div class="transcript" id="transcript">
+            Awaiting your command...
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="control-btn primary" id="startBtn" onclick="startVoice()">Start Voice</button>
+            <button class="control-btn hidden" id="stopBtn" onclick="stopVoice()">Stop</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let audioContext = null;
+        let analyser = null;
+        let animationId = null;
+        let silenceTimeout = null;
+        let lastSoundTime = 0;
+        const SILENCE_THRESHOLD = 30;
+        const SILENCE_DURATION = 1500;
+
+        async function startVoice() {
+            try {
+                // Get microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Setup audio context for visualization
+                audioContext = new AudioContext();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 256;
+
+                // Setup media recorder
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await transcribeAndRespond(audioBlob);
+                };
+
+                // Start recording
+                mediaRecorder.start();
+                document.body.classList.add('recording');
+                document.getElementById('statusText').textContent = 'LISTENING';
+                document.getElementById('statusSubtext').textContent = 'Speak your command...';
+                document.getElementById('waveform').classList.add('active');
+                document.getElementById('startBtn').classList.add('hidden');
+                document.getElementById('stopBtn').classList.remove('hidden');
+
+                // Start visualization
+                visualizeAudio();
+
+                // Start silence detection
+                startSilenceDetection();
+
+            } catch (error) {
+                console.error('Microphone error:', error);
+                updateTranscript('⚠️ Microphone access denied. Please allow microphone access.');
+            }
+        }
+
+        function stopVoice() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                document.body.classList.remove('recording');
+                stopSilenceDetection();
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+            }
+        }
+
+        function visualizeAudio() {
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const bars = document.querySelectorAll('.wave-bar');
+
+            function animate() {
+                if (!analyser) return;
+
+                analyser.getByteFrequencyData(dataArray);
+
+                bars.forEach((bar, index) => {
+                    const dataIndex = Math.floor((index / bars.length) * dataArray.length);
+                    const value = dataArray[dataIndex] || 0;
+                    const height = Math.max(10, (value / 255) * 80);
+                    bar.style.height = `${height}px`;
+                });
+
+                animationId = requestAnimationFrame(animate);
+            }
+
+            animate();
+        }
+
+        function startSilenceDetection() {
+            lastSoundTime = Date.now();
+
+            function checkSilence() {
+                if (!analyser || !mediaRecorder || mediaRecorder.state !== 'recording') {
+                    return;
+                }
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+
+                if (average > SILENCE_THRESHOLD) {
+                    lastSoundTime = Date.now();
+                } else {
+                    const silenceDuration = Date.now() - lastSoundTime;
+                    if (silenceDuration > SILENCE_DURATION) {
+                        console.log('Auto-stopping due to silence');
+                        stopVoice();
+                        return;
+                    }
+                }
+
+                silenceTimeout = setTimeout(checkSilence, 100);
+            }
+
+            checkSilence();
+        }
+
+        function stopSilenceDetection() {
+            if (silenceTimeout) {
+                clearTimeout(silenceTimeout);
+                silenceTimeout = null;
+            }
+        }
+
+        async function transcribeAndRespond(audioBlob) {
+            // Processing state
+            document.body.classList.add('processing');
+            document.body.classList.remove('recording');
+            document.getElementById('statusText').textContent = 'PROCESSING';
+            document.getElementById('statusSubtext').textContent = 'Transcribing your voice...';
+            document.getElementById('waveform').classList.remove('active');
+
+            try {
+                // Transcribe
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'voice.webm');
+
+                const transcribeResponse = await fetch(`${API_BASE}/api/aura/voice`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const transcribeData = await transcribeResponse.json();
+
+                if (!transcribeData.transcription) {
+                    throw new Error(transcribeData.error || 'Transcription failed');
+                }
+
+                updateTranscript(`You: ${transcribeData.transcription}`);
+
+                // Get response
+                document.getElementById('statusText').textContent = 'THINKING';
+                document.getElementById('statusSubtext').textContent = 'Processing your request...';
+
+                const chatResponse = await fetch(`${API_BASE}/api/aura/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: transcribeData.transcription })
+                });
+
+                const chatData = await chatResponse.json();
+                const response = chatData.message || chatData.response || 'I understand.';
+
+                updateTranscript(`AURA: ${response}`);
+
+                // Speak response
+                document.body.classList.remove('processing');
+                document.body.classList.add('speaking');
+                document.getElementById('statusText').textContent = 'SPEAKING';
+                document.getElementById('statusSubtext').textContent = 'Playing response...';
+
+                await speakText(response);
+
+                // Ready for next command
+                setTimeout(() => {
+                    document.body.classList.remove('speaking');
+                    document.getElementById('statusText').textContent = 'READY';
+                    document.getElementById('statusSubtext').textContent = 'Click "Start" to speak again';
+                    document.getElementById('startBtn').classList.remove('hidden');
+                    document.getElementById('stopBtn').classList.add('hidden');
+                }, 500);
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.body.classList.remove('processing', 'speaking');
+                document.getElementById('statusText').textContent = 'ERROR';
+                document.getElementById('statusSubtext').textContent = error.message;
+                updateTranscript(`⚠️ ${error.message}`);
+
+                setTimeout(() => {
+                    document.getElementById('statusText').textContent = 'READY';
+                    document.getElementById('statusSubtext').textContent = 'Click "Start" to try again';
+                    document.getElementById('startBtn').classList.remove('hidden');
+                    document.getElementById('stopBtn').classList.add('hidden');
+                }, 3000);
+            }
+        }
+
+        function speakText(text) {
+            return new Promise((resolve) => {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 1.0;
+
+                    // Use best available voice
+                    const voices = window.speechSynthesis.getVoices();
+                    const preferredVoice = voices.find(voice =>
+                        voice.name.includes('Google') ||
+                        voice.name.includes('Natural') ||
+                        voice.lang.startsWith('en')
+                    );
+                    if (preferredVoice) {
+                        utterance.voice = preferredVoice;
+                    }
+
+                    utterance.onend = resolve;
+                    window.speechSynthesis.speak(utterance);
+                } else {
+                    resolve();
+                }
+            });
+        }
+
+        function updateTranscript(text) {
+            document.getElementById('transcript').textContent = text;
+        }
+
+        function exitVoiceMode() {
+            window.location.href = '/';
+        }
+
+        // Load voices
+        if ('speechSynthesis' in window) {
+            speechSynthesis.getVoices();
+        }
+    </script>
+</body>
+</html>
