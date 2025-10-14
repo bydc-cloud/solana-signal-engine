@@ -206,11 +206,15 @@ async def aura_voice(request: Request):
         content = await audio_file.read()
         file_size = len(content)
 
-        logger.info(f"Received audio file: {file_size} bytes, type: {audio_file.content_type}")
+        logger.info(f"Received audio file: {file_size} bytes, type: {audio_file.content_type}, filename: {audio_file.filename}")
 
-        if file_size < 100:
+        if file_size < 10:
             logger.error(f"Audio file too small: {file_size} bytes")
-            return {"error": "Audio file is too small or empty", "transcription": None}
+            return {"error": f"Audio file is too small or empty ({file_size} bytes)", "transcription": None}
+
+        if file_size > 25000000:  # 25MB limit
+            logger.error(f"Audio file too large: {file_size} bytes")
+            return {"error": "Audio file is too large (max 25MB)", "transcription": None}
 
         # Determine file extension based on content type
         content_type = audio_file.content_type or ""

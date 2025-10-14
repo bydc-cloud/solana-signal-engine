@@ -346,16 +346,32 @@
                 audioChunks = [];
 
                 mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
+                    if (event.data && event.data.size > 0) {
+                        console.log('Audio chunk received:', event.data.size, 'bytes');
+                        audioChunks.push(event.data);
+                    }
                 };
 
                 mediaRecorder.onstop = async () => {
+                    console.log('Recording stopped, chunks:', audioChunks.length);
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    console.log('Audio blob size:', audioBlob.size, 'bytes');
+
+                    if (audioBlob.size < 100) {
+                        updateTranscript('⚠️ Audio recording too short. Please speak longer.');
+                        document.body.classList.remove('recording');
+                        document.getElementById('statusText').textContent = 'READY';
+                        document.getElementById('statusSubtext').textContent = 'Click "Start" to try again';
+                        document.getElementById('startBtn').classList.remove('hidden');
+                        document.getElementById('stopBtn').classList.add('hidden');
+                        return;
+                    }
+
                     await transcribeAndRespond(audioBlob);
                 };
 
-                // Start recording
-                mediaRecorder.start();
+                // Start recording with timeslice to collect data every 100ms
+                mediaRecorder.start(100);
                 document.body.classList.add('recording');
                 document.getElementById('statusText').textContent = 'LISTENING';
                 document.getElementById('statusSubtext').textContent = 'Speak your command...';
