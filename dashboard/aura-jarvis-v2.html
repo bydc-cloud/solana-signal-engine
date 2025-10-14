@@ -365,20 +365,32 @@
         }
 
         function startVoice() {
+            console.log('🎤 Start voice button clicked');
+
             if (!recognition) {
+                console.log('Initializing speech recognition...');
                 recognition = initSpeechRecognition();
-                if (!recognition) return;
+                if (!recognition) {
+                    updateTranscript('⚠️ Speech recognition not supported. Use Chrome or Edge browser!');
+                    alert('Voice recognition requires Chrome or Edge browser. Please switch browsers.');
+                    return;
+                }
             }
 
             isListening = true;
             document.getElementById('startBtn').classList.add('hidden');
             document.getElementById('stopBtn').classList.remove('hidden');
+            updateTranscript('🎤 Microphone activating... Speak when ready!');
 
             try {
+                console.log('Starting speech recognition...');
                 recognition.start();
             } catch (error) {
                 console.error('Failed to start recognition:', error);
-                updateTranscript('⚠️ Failed to start voice recognition. Please try again.');
+                updateTranscript(`⚠️ Error: ${error.message}\n\nMake sure to ALLOW microphone access when asked!`);
+                document.getElementById('startBtn').classList.remove('hidden');
+                document.getElementById('stopBtn').classList.add('hidden');
+                isListening = false;
             }
         }
 
