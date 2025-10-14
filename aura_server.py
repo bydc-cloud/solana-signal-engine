@@ -274,6 +274,17 @@ async def aura_voice(request: Request):
             "details": str(e)
         }
 
+# Debug endpoint to check OpenAI key
+@app.get("/api/aura/debug/openai")
+async def debug_openai():
+    """Check if OpenAI key is configured"""
+    openai_key = os.getenv("OPENAI_API_KEY")
+    return {
+        "openai_key_set": openai_key is not None,
+        "key_length": len(openai_key) if openai_key else 0,
+        "key_prefix": openai_key[:15] if openai_key else "NOT_SET"
+    }
+
 # AURA Live System Endpoints
 @app.get("/api/aura/live/status")
 async def get_live_status():
