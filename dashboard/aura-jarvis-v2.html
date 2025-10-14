@@ -310,6 +310,31 @@
 
         // Initialize Speech Recognition (Browser API - FREE!)
         function initSpeechRecognition() {
+            // Safari doesn't support Speech Recognition well - show text input instead
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+            if (isSafari) {
+                console.log('Safari detected - will use text input fallback');
+                updateTranscript('📱 Safari detected - Click "Activate" then type your command below');
+                document.getElementById('statusSubtext').textContent = 'Type your command (e.g., "What signals do we have?")';
+                // Add text input field for Safari
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.id = 'safariInput';
+                textInput.placeholder = 'Type your command here...';
+                textInput.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 600px; padding: 15px; font-size: 16px; background: rgba(0, 255, 255, 0.1); border: 2px solid cyan; color: cyan; font-family: Orbitron; text-align: center; border-radius: 10px;';
+                textInput.addEventListener('keypress', async (e) => {
+                    if (e.key === 'Enter' && textInput.value.trim()) {
+                        const command = textInput.value.trim();
+                        updateTranscript(`You: ${command}`);
+                        textInput.value = '';
+                        await processCommand(command);
+                    }
+                });
+                document.body.appendChild(textInput);
+                return null;
+            }
+
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
             if (!SpeechRecognition) {
@@ -319,24 +344,43 @@
 
             recognition = new SpeechRecognition();
             recognition.continuous = false;
-            recognition.interimResults = false;
+            recognition.interimResults = true;  // Enable interim results
             recognition.lang = 'en-US';
+            recognition.maxAlternatives = 1;
 
             recognition.onstart = () => {
-                console.log('Speech recognition started');
+                console.log('✅ Speech recognition started successfully');
                 document.body.classList.add('listening');
                 document.getElementById('statusText').textContent = 'LISTENING';
-                document.getElementById('statusSubtext').textContent = 'Speak your command...';
+                document.getElementById('statusSubtext').textContent = 'Speak now! Say something like "What signals do we have?"';
                 document.getElementById('waveform').classList.add('active');
+                updateTranscript('🎤 Listening... Speak now!');
             };
 
             recognition.onresult = async (event) => {
-                const transcript = event.results[0][0].transcript;
-                console.log('Transcribed:', transcript);
-                updateTranscript(`You: ${transcript}`);
+                console.log('📝 Got result event:', event);
+                const result = event.results[event.results.length - 1];
+                const transcript = result[0].transcript;
+                const isFinal = result.isFinal;
 
-                // Process the command
-                await processCommand(transcript);
+                console.log('Transcript:', transcript, 'Final:', isFinal);
+
+                if (!isFinal) {
+                    // Show interim results
+                    updateTranscript(`Hearing: "${transcript}"...`);
+                } else {
+                    // Final result
+                    console.log('✅ Final transcription:', transcript);
+                    updateTranscript(`You: ${transcript}`);
+
+                    // Stop recognition
+                    if (recognition && isListening) {
+                        recognition.stop();
+                    }
+
+                    // Process the command
+                    await processCommand(transcript);
+                }
             };
 
             recognition.onerror = (event) => {

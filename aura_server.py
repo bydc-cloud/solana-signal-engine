@@ -472,75 +472,137 @@ async def load_all_trackers():
         return {"success": False, "error": str(e)}
 
 # Dashboard data endpoints
-@app.get("/api/aura/scanner/signals")
-async def get_scanner_signals(hours: int = 24, limit: int = 50):
-    """Get recent scanner signals"""
+@app.get("/api/aura/signals")
+async def get_signals(hours: int = 24, limit: int = 50):
+    """Get recent Telegram signals from helix_signals table"""
     try:
-        from aura.database import db
-        signals = db.get_recent_helix_signals(hours=hours, limit=limit)
+        import sqlite3
+        import json
+        conn = sqlite3.connect('aura.db', timeout=10)
+        cur = conn.cursor()
+
+        # Check if table exists
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='helix_signals'")
+        if not cur.fetchone():
+            logger.warning("helix_signals table does not exist")
+            conn.close()
+            return {"signals": [], "count": 0}
+
+        # Get signals from last N hours
+        cur.execute("""
+            SELECT token_address, symbol, momentum_score, market_cap, liquidity,
+                   volume_24h, price, timestamp, metadata
+            FROM helix_signals
+            WHERE datetime(timestamp) > datetime('now', '-' || ? || ' hours')
+            ORDER BY timestamp DESC
+            LIMIT ?
+        """, (hours, limit))
+
+        signals = []
+        for row in cur.fetchall():
+            metadata = json.loads(row[8]) if row[8] else {}
+            signals.append({
+                'address': row[0],
+                'symbol': row[1],
+                'momentum': row[2],
+                'mcap': row[3],
+                'liquidity': row[4],
+                'volume': row[5],
+                'price': row[6],
+                'timestamp': row[7],
+                'risk_score': metadata.get('risk_score', 0),
+                'narrative': metadata.get('narrative', ''),
+                'strategy': metadata.get('strategy', '')
+            })
+
+        conn.close()
+        logger.info(f"✅ Returning {len(signals)} signals")
         return {"signals": signals, "count": len(signals)}
     except Exception as e:
-        logger.error(f"Signals API error: {e}")
+        logger.error(f"❌ Signals API error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {"error": str(e), "signals": [], "count": 0}
+
+@app.get("/api/aura/scanner/signals")
+async def get_scanner_signals(hours: int = 24, limit: int = 50):
+    """Get recent scanner signals (alias for /api/aura/signals)"""
+    return await get_signals(hours, limit)
 
 @app.get("/api/aura/wallets")
 async def get_tracked_wallets():
-    """Get tracked whale wallets from both tables"""
+    """Get tracked whale wallets - returns ALL wallets from database"""
     try:
         import sqlite3
-        conn = sqlite3.connect('aura.db')
+        conn = sqlite3.connect('aura.db', timeout=10)
         cur = conn.cursor()
 
-        # Try live_whale_wallets first (156 wallets)
-        cur.execute("""
-            SELECT wallet_address, nickname, min_tx_value_usd, total_alerts_sent, added_at
-            FROM live_whale_wallets
-            WHERE track_enabled = 1
-            ORDER BY total_alerts_sent DESC
-            LIMIT 50
-        """)
+        # First check which table exists and has data
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('live_whale_wallets', 'tracked_wallets')")
+        tables = [row[0] for row in cur.fetchall()]
+        logger.info(f"Available wallet tables: {tables}")
 
         wallets = []
-        for row in cur.fetchall():
-            wallets.append({
-                'address': row[0],
-                'nickname': row[1] or 'Unknown',
-                'min_tx': row[2],
-                'alerts': row[3],
-                'added': row[4],
-                'win_rate': 0,  # Placeholder
-                'total_trades': 0  # Placeholder
-            })
 
-        # If no live wallets, try tracked_wallets table
-        if not wallets:
-            cur.execute("""
-                SELECT address, win_rate, avg_pnl, total_trades, successful_trades,
-                       total_pnl, last_updated, tokens_traded
-                FROM tracked_wallets
-                WHERE is_active = 1
-                ORDER BY total_pnl DESC
-                LIMIT 10
-            """)
+        # Try live_whale_wallets first
+        if 'live_whale_wallets' in tables:
+            cur.execute("SELECT COUNT(*) FROM live_whale_wallets")
+            count = cur.fetchone()[0]
+            logger.info(f"live_whale_wallets has {count} rows")
 
-            for row in cur.fetchall():
-                wallets.append({
-                    'address': row[0],
-                    'nickname': 'Whale',
-                    'win_rate': row[1],
-                    'avg_pnl': row[2],
-                    'total_trades': row[3],
-                    'successful_trades': row[4],
-                    'total_pnl': row[5],
-                    'last_updated': row[6],
-                    'tokens_traded': row[7].split(',') if row[7] else []
-                })
+            if count > 0:
+                cur.execute("""
+                    SELECT wallet_address, nickname, min_tx_value_usd, total_alerts_sent, added_at
+                    FROM live_whale_wallets
+                    ORDER BY total_alerts_sent DESC
+                """)
+
+                for row in cur.fetchall():
+                    wallets.append({
+                        'address': row[0],
+                        'nickname': row[1] or 'Unknown Whale',
+                        'min_tx': row[2] or 10000,
+                        'alerts': row[3] or 0,
+                        'added': row[4],
+                        'win_rate': 0,
+                        'total_trades': 0
+                    })
+
+        # If no wallets found, try tracked_wallets
+        if not wallets and 'tracked_wallets' in tables:
+            cur.execute("SELECT COUNT(*) FROM tracked_wallets")
+            count = cur.fetchone()[0]
+            logger.info(f"tracked_wallets has {count} rows")
+
+            if count > 0:
+                cur.execute("""
+                    SELECT address, win_rate, avg_pnl, total_trades, successful_trades,
+                           total_pnl, last_updated, tokens_traded
+                    FROM tracked_wallets
+                    WHERE is_active = 1
+                    ORDER BY total_pnl DESC
+                """)
+
+                for row in cur.fetchall():
+                    wallets.append({
+                        'address': row[0],
+                        'nickname': 'Whale',
+                        'win_rate': row[1],
+                        'avg_pnl': row[2],
+                        'total_trades': row[3],
+                        'successful_trades': row[4],
+                        'total_pnl': row[5],
+                        'last_updated': row[6],
+                        'tokens_traded': row[7].split(',') if row[7] else []
+                    })
 
         conn.close()
-        logger.info(f"Returning {len(wallets)} wallets")
+        logger.info(f"✅ Returning {len(wallets)} wallets to frontend")
         return {"wallets": wallets, "count": len(wallets)}
     except Exception as e:
-        logger.error(f"Wallets API error: {e}")
+        logger.error(f"❌ Wallets API error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {"error": str(e), "wallets": [], "count": 0}
 
 @app.get("/api/aura/portfolio")
