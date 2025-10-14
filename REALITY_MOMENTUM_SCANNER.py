@@ -1398,38 +1398,49 @@ class RealityMomentumScanner:
             dexscreener_link = f"https://dexscreener.com/solana/{address}"
             pst_time = datetime.now(self.signal_timezone).strftime('%Y-%m-%d %I:%M:%S %p %Z')
 
-            message = f"""{strength_emoji} <b>MOMENTUM SIGNAL</b> {strength_emoji}
+            # Calculate token age (if available)
+            created_at = token.get('created_at')
+            if created_at:
+                try:
+                    created_time = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    age_hours = (datetime.now(created_time.tzinfo) - created_time).total_seconds() / 3600
+                    if age_hours < 1:
+                        age_label = f"{int(age_hours * 60)}m"
+                    elif age_hours < 24:
+                        age_label = f"{age_hours:.1f}h"
+                    else:
+                        age_label = f"{age_hours / 24:.1f}d"
+                except:
+                    age_label = "unknown"
+            else:
+                age_label = "unknown"
 
-💎 <b>Token:</b> ${symbol}
-🧾 <b>Address:</b> <code>{address}</code>
-🎯 <b>Signal Strength:</b> {signal_strength:.1f}/100
-⚠️ <b>Risk Level:</b> {risk_level}
+            message = f"""<b>{strength_emoji} MOMENTUM SIGNAL</b>
 
-💰 <b>Price:</b> ${price:.8f}
-📊 <b>24h Change:</b> {change:+.1f}%
-💸 <b>Volume:</b> ${volume:,.0f}
-🎯 <b>Market Cap:</b> ${mcap:,.0f}
-👥 <b>Holders:</b> {holders}
-🛒 <b>Buys:</b> 1h {buy1h} | 5m {buy5m}
-🔥 <b>Buyer Dominance:</b> {dominance_pct:.0f}%
-💥 <b>Momentum Score:</b> {momentum_score:.0f}/100
-🔁 <b>Turnover:</b> {turnover:.2f}x
-📈 <b>Volume Quality:</b> {validation['volume_quality']}/100
-👤 <b>Active Wallets (1h):</b> {unique_1h}
-🤝 <b>Helius Wallets (1h):</b> {helius_wallets_1h}
-💵 <b>Helius Buy Vol (1h):</b> ${helius_buy_usd:,.0f}
-🔄 <b>Helius Tx (1h):</b> {helius_tx_1h}
-⏱️ <b>Last Trade:</b> {last_trade_label}
-🧠 <b>Narrative:</b> {narrative}
-🔍 <b>Discovery:</b> {strategy}
+<b>${symbol}</b>
+<code>{address}</code>
 
-🔗 <b>Jupiter:</b> <a href="{jupiter_link}">Swap</a>
-📊 <b>DexScreener:</b> <a href="{dexscreener_link}">Live Chart</a>
+<b>Overview:</b>
+• Signal: {signal_strength:.1f}/100 | Risk: {risk_level}
+• Market Cap: ${mcap:,.0f} | Age: {age_label}
+• Price: ${price:.8f} ({change:+.1f}% 24h)
+• Volume: ${volume:,.0f} (Turnover: {turnover:.2f}x)
 
-⏰ {pst_time}
+<b>Activity (1h):</b>
+• Buys: {buy1h} | Dominance: {dominance_pct:.0f}%
+• Wallets: {helius_wallets_1h} | Tx: {helius_tx_1h}
+• Buy Volume: ${helius_buy_usd:,.0f}
+• Momentum: {momentum_score:.0f}/100
 
-<b>🎯 REALITY MOMENTUM SCANNER</b>
-<i>Advanced risk-filtered signals</i>"""
+<b>Details:</b>
+• Holders: {holders} | Last Trade: {last_trade_label}
+• Strategy: {strategy}
+• Narrative: {narrative}
+
+<a href="{jupiter_link}">Swap on Jupiter</a> | <a href="{dexscreener_link}">View Chart</a>
+
+{pst_time}
+<b>REALITY MOMENTUM SCANNER</b>"""
 
             url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
             data = {
@@ -1456,6 +1467,61 @@ class RealityMomentumScanner:
                         })
                         if len(self.signal_history) > 500:
                             self.signal_history = self.signal_history[-500:]
+
+                        # Store in AURA database
+                        try:
+                            import sqlite3
+                            import json
+                            conn = sqlite3.connect('aura.db', timeout=10)
+                            cur = conn.cursor()
+
+                            # Create table if not exists
+                            cur.execute("""
+                                CREATE TABLE IF NOT EXISTS helix_signals (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    token_address TEXT NOT NULL,
+                                    symbol TEXT NOT NULL,
+                                    momentum_score REAL,
+                                    market_cap REAL,
+                                    liquidity REAL,
+                                    volume_24h REAL,
+                                    price REAL,
+                                    timestamp TEXT NOT NULL,
+                                    metadata TEXT
+                                )
+                            """)
+
+                            cur.execute("""
+                                INSERT INTO helix_signals
+                                (token_address, symbol, momentum_score, market_cap, liquidity, volume_24h, price, timestamp, metadata)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                address,
+                                symbol,
+                                signal_strength,
+                                mcap,
+                                token.get('liquidity', 0),
+                                volume,
+                                price,
+                                sent_at.isoformat(),
+                                json.dumps({
+                                    'risk_score': validation['risk_score'],
+                                    'buyer_dominance': dominance_pct,
+                                    'narrative': narrative,
+                                    'holders': holders,
+                                    'buys_1h': buy1h,
+                                    'buys_5m': buy5m,
+                                    'helius_wallets_1h': helius_wallets_1h,
+                                    'helius_buy_volume_1h_usd': helius_buy_usd,
+                                    'strategy': strategy
+                                })
+                            ))
+
+                            conn.commit()
+                            conn.close()
+                            logger.info(f"✅ Stored signal in AURA database: ${symbol}")
+                        except Exception as db_error:
+                            logger.error(f"Failed to store signal in AURA db: {db_error}")
 
                         return True
                     else:
