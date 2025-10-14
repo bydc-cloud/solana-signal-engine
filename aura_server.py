@@ -353,6 +353,34 @@ async def initialize_railway():
         logger.error(f"Initialization error: {e}")
         return {"success": False, "error": str(e)}
 
+@app.post("/api/aura/load_trackers")
+async def load_all_trackers():
+    """Load all 481 CT monitors and 154 whale wallets"""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["python3", "LOAD_ALL_TRACKERS_BATCH.py"],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        if result.returncode == 0:
+            return {
+                "success": True,
+                "message": "All trackers loaded successfully",
+                "output": result.stdout
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.stderr,
+                "output": result.stdout
+            }
+    except Exception as e:
+        logger.error(f"Tracker loading error: {e}")
+        return {"success": False, "error": str(e)}
+
 # Dashboard data endpoints
 @app.get("/api/aura/scanner/signals")
 async def get_scanner_signals(hours: int = 24, limit: int = 50):
