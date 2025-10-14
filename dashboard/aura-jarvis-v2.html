@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA - Voice Interface v2</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background: #000;
+            color: #00ff88;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Animated background grid */
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(0, 255, 136, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 136, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            z-index: 0;
+        }
+
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(60deg) translateZ(0); }
+            100% { transform: perspective(500px) rotateX(60deg) translateZ(50px); }
+        }
+
+        /* Main container */
+        .voice-interface {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 2rem;
+        }
+
+        /* AI Orb */
+        .ai-orb {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin-bottom: 3rem;
+        }
+
+        .orb-core {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle, rgba(0, 255, 136, 0.4), rgba(0, 255, 136, 0) 70%);
+            border-radius: 50%;
+            animation: orbPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes orbPulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.7; }
+        }
+
+        .orb-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px solid rgba(0, 255, 136, 0.3);
+            border-radius: 50%;
+            animation: ringExpand 3s ease-out infinite;
+        }
+
+        .orb-ring:nth-child(2) { width: 180px; height: 180px; animation-delay: 0s; }
+        .orb-ring:nth-child(3) { width: 220px; height: 220px; animation-delay: 0.5s; }
+        .orb-ring:nth-child(4) { width: 260px; height: 260px; animation-delay: 1s; }
+        .orb-ring:nth-child(5) { width: 300px; height: 300px; animation-delay: 1.5s; }
+
+        @keyframes ringExpand {
+            0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+            50% { opacity: 0.5; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+
+        /* Waveform */
+        .waveform {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 100px;
+            margin-bottom: 2rem;
+        }
+
+        .wave-bar {
+            width: 4px;
+            height: 10px;
+            background: linear-gradient(180deg, #00ff88 0%, rgba(0, 255, 136, 0.3) 100%);
+            border-radius: 2px;
+            animation: waveIdle 1.5s ease-in-out infinite;
+        }
+
+        .wave-bar:nth-child(odd) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(even) { animation-delay: 0.3s; }
+
+        @keyframes waveIdle {
+            0%, 100% { height: 10px; }
+            50% { height: 30px; }
+        }
+
+        .waveform.active .wave-bar {
+            animation: waveActive 0.3s ease-in-out infinite;
+        }
+
+        @keyframes waveActive {
+            0%, 100% { height: 20px; }
+            50% { height: 80px; }
+        }
+
+        /* Status */
+        .status-text {
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .status-subtext {
+            font-size: 1rem;
+            font-weight: 400;
+            text-align: center;
+            color: rgba(0, 255, 136, 0.6);
+            margin-bottom: 3rem;
+        }
+
+        /* Transcript */
+        .transcript {
+            max-width: 800px;
+            text-align: center;
+            font-size: 1.2rem;
+            line-height: 1.8;
+            color: #fff;
+            margin-bottom: 2rem;
+            min-height: 100px;
+            padding: 2rem;
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .control-btn {
+            padding: 1rem 2rem;
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid #00ff88;
+            border-radius: 50px;
+            color: #00ff88;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .control-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.4);
+            transform: scale(1.05);
+        }
+
+        .control-btn.primary {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .control-btn.primary:hover {
+            background: #00ffaa;
+            box-shadow: 0 0 40px rgba(0, 255, 136, 0.6);
+        }
+
+        /* States */
+        body.listening .orb-core {
+            animation: orbRecording 0.5s ease-in-out infinite;
+        }
+
+        @keyframes orbRecording {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); background: radial-gradient(circle, rgba(255, 0, 0, 0.4), rgba(255, 0, 0, 0) 70%); }
+            50% { transform: translate(-50%, -50%) scale(1.3); background: radial-gradient(circle, rgba(255, 0, 0, 0.6), rgba(255, 0, 0, 0) 70%); }
+        }
+
+        body.processing .orb-core {
+            animation: orbProcessing 1s linear infinite;
+        }
+
+        @keyframes orbProcessing {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        body.speaking .orb-core {
+            animation: orbSpeaking 0.3s ease-in-out infinite;
+        }
+
+        @keyframes orbSpeaking {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.4); opacity: 0.8; }
+        }
+
+        /* Exit */
+        .exit-btn {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .exit-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            transform: rotate(90deg);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+
+    <div class="voice-interface">
+        <button class="exit-btn" onclick="exitVoiceMode()">✕</button>
+
+        <div class="ai-orb">
+            <div class="orb-ring"></div>
+            <div class="orb-ring"></div>
+            <div class="orb-ring"></div>
+            <div class="orb-ring"></div>
+            <div class="orb-core"></div>
+        </div>
+
+        <div class="waveform" id="waveform">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+        </div>
+
+        <div class="status-text" id="statusText">READY</div>
+        <div class="status-subtext" id="statusSubtext">Click "Start" to begin voice conversation</div>
+
+        <div class="transcript" id="transcript">
+            Awaiting your command...
+        </div>
+
+        <div class="controls">
+            <button class="control-btn primary" id="startBtn" onclick="startVoice()">Start Voice</button>
+            <button class="control-btn hidden" id="stopBtn" onclick="stopVoice()">Stop</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let recognition = null;
+        let isListening = false;
+        let currentAudio = null;
+
+        // Initialize Speech Recognition (Browser API - FREE!)
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognition) {
+                updateTranscript('⚠️ Speech recognition not supported in this browser. Please use Chrome or Edge.');
+                return null;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                console.log('Speech recognition started');
+                document.body.classList.add('listening');
+                document.getElementById('statusText').textContent = 'LISTENING';
+                document.getElementById('statusSubtext').textContent = 'Speak your command...';
+                document.getElementById('waveform').classList.add('active');
+            };
+
+            recognition.onresult = async (event) => {
+                const transcript = event.results[0][0].transcript;
+                console.log('Transcribed:', transcript);
+                updateTranscript(`You: ${transcript}`);
+
+                // Process the command
+                await processCommand(transcript);
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                document.body.classList.remove('listening');
+                document.getElementById('statusText').textContent = 'ERROR';
+                document.getElementById('statusSubtext').textContent = `Error: ${event.error}`;
+                document.getElementById('waveform').classList.remove('active');
+
+                setTimeout(() => {
+                    document.getElementById('statusText').textContent = 'READY';
+                    document.getElementById('statusSubtext').textContent = 'Click "Start" to try again';
+                    document.getElementById('startBtn').classList.remove('hidden');
+                    document.getElementById('stopBtn').classList.add('hidden');
+                }, 3000);
+            };
+
+            recognition.onend = () => {
+                console.log('Speech recognition ended');
+                isListening = false;
+                document.body.classList.remove('listening');
+                document.getElementById('waveform').classList.remove('active');
+            };
+
+            return recognition;
+        }
+
+        function startVoice() {
+            if (!recognition) {
+                recognition = initSpeechRecognition();
+                if (!recognition) return;
+            }
+
+            isListening = true;
+            document.getElementById('startBtn').classList.add('hidden');
+            document.getElementById('stopBtn').classList.remove('hidden');
+
+            try {
+                recognition.start();
+            } catch (error) {
+                console.error('Failed to start recognition:', error);
+                updateTranscript('⚠️ Failed to start voice recognition. Please try again.');
+            }
+        }
+
+        function stopVoice() {
+            if (recognition && isListening) {
+                recognition.stop();
+                isListening = false;
+            }
+            document.getElementById('startBtn').classList.remove('hidden');
+            document.getElementById('stopBtn').classList.add('hidden');
+        }
+
+        async function processCommand(transcript) {
+            // Processing state
+            document.body.classList.add('processing');
+            document.getElementById('statusText').textContent = 'THINKING';
+            document.getElementById('statusSubtext').textContent = 'Processing your request...';
+
+            try {
+                // Get AI response
+                const chatResponse = await fetch(`${API_BASE}/api/aura/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: transcript })
+                });
+
+                const chatData = await chatResponse.json();
+                const response = chatData.message || chatData.response || 'I understand.';
+
+                updateTranscript(`AURA: ${response}`);
+
+                // Speak response with ElevenLabs
+                document.body.classList.remove('processing');
+                document.body.classList.add('speaking');
+                document.getElementById('statusText').textContent = 'SPEAKING';
+                document.getElementById('statusSubtext').textContent = 'Playing response...';
+
+                await speakWithElevenLabs(response);
+
+                // Ready for next command
+                setTimeout(() => {
+                    document.body.classList.remove('speaking');
+                    document.getElementById('statusText').textContent = 'READY';
+                    document.getElementById('statusSubtext').textContent = 'Click "Start" to speak again';
+                    document.getElementById('startBtn').classList.remove('hidden');
+                    document.getElementById('stopBtn').classList.add('hidden');
+                }, 500);
+
+            } catch (error) {
+                console.error('Error processing command:', error);
+                document.body.classList.remove('processing', 'speaking');
+                document.getElementById('statusText').textContent = 'ERROR';
+                document.getElementById('statusSubtext').textContent = error.message;
+                updateTranscript(`⚠️ ${error.message}`);
+
+                setTimeout(() => {
+                    document.getElementById('statusText').textContent = 'READY';
+                    document.getElementById('statusSubtext').textContent = 'Click "Start" to try again';
+                    document.getElementById('startBtn').classList.remove('hidden');
+                    document.getElementById('stopBtn').classList.add('hidden');
+                }, 3000);
+            }
+        }
+
+        async function speakWithElevenLabs(text) {
+            try {
+                // Call backend endpoint that uses ElevenLabs
+                const response = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) {
+                    throw new Error('ElevenLabs TTS failed');
+                }
+
+                // Get audio blob
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+
+                // Play audio
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio = null;
+                }
+
+                currentAudio = new Audio(audioUrl);
+
+                return new Promise((resolve, reject) => {
+                    currentAudio.onended = () => {
+                        URL.revokeObjectURL(audioUrl);
+                        resolve();
+                    };
+                    currentAudio.onerror = reject;
+                    currentAudio.play().catch(reject);
+                });
+
+            } catch (error) {
+                console.error('ElevenLabs error:', error);
+                // Fallback to browser speech
+                return speakWithBrowser(text);
+            }
+        }
+
+        function speakWithBrowser(text) {
+            return new Promise((resolve) => {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 1.0;
+                    utterance.onend = resolve;
+                    window.speechSynthesis.speak(utterance);
+                } else {
+                    resolve();
+                }
+            });
+        }
+
+        function updateTranscript(text) {
+            document.getElementById('transcript').textContent = text;
+        }
+
+        function exitVoiceMode() {
+            if (currentAudio) {
+                currentAudio.pause();
+            }
+            if (recognition && isListening) {
+                recognition.stop();
+            }
+            window.location.href = '/';
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            initSpeechRecognition();
+        });
+    </script>
+</body>
+</html>

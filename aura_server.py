@@ -153,6 +153,12 @@ async def dashboard_live():
 @app.get("/jarvis")
 async def dashboard_jarvis():
     """Serve the full-screen Jarvis-style voice interface"""
+    return FileResponse("dashboard/aura-jarvis-v2.html")  # Using v2 with browser speech + ElevenLabs
+
+# Jarvis v1 (OpenAI Whisper - requires credits)
+@app.get("/jarvis/v1")
+async def dashboard_jarvis_v1():
+    """Serve Jarvis v1 (OpenAI Whisper)"""
     return FileResponse("dashboard/aura-jarvis.html")
 
 # Firecrawl-style dashboard (alternative)
@@ -277,6 +283,54 @@ async def aura_voice(request: Request):
             "transcription": None,
             "details": str(e)
         }
+
+# ElevenLabs Text-to-Speech endpoint
+@app.post("/api/aura/voice/elevenlabs")
+async def elevenlabs_tts(request: Request):
+    """Generate speech with ElevenLabs (ultra-realistic voice)"""
+    try:
+        data = await request.json()
+        text = data.get("text", "")
+
+        if not text:
+            return {"error": "No text provided"}
+
+        elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
+        if not elevenlabs_key:
+            logger.error("ElevenLabs API key not configured")
+            return {"error": "ElevenLabs not configured"}
+
+        # Call ElevenLabs API
+        import aiohttp
+        voice_id = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice (clear, professional)
+
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        headers = {
+            "xi-api-key": elevenlabs_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75
+            }
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    audio_bytes = await response.read()
+                    return Response(content=audio_bytes, media_type="audio/mpeg")
+                else:
+                    error_text = await response.text()
+                    logger.error(f"ElevenLabs error: {response.status} - {error_text}")
+                    return {"error": f"ElevenLabs API error: {response.status}"}
+
+    except Exception as e:
+        logger.error(f"ElevenLabs TTS error: {e}")
+        return {"error": str(e)}
 
 # Debug endpoint to check OpenAI key
 @app.get("/api/aura/debug/openai")
