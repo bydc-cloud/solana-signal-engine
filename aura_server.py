@@ -173,6 +173,13 @@ async def dashboard_firecrawl():
     """Serve the Firecrawl-style dashboard"""
     return FileResponse("dashboard/firecrawl-style.html")
 
+# System status page
+@app.get("/status")
+@app.get("/dashboard/status")
+async def system_status():
+    """System status and diagnostics page"""
+    return FileResponse("dashboard/status.html")
+
 # Lovable dashboard (Supabase-based, for reference)
 @app.get("/dashboard/lovable")
 async def dashboard_lovable():

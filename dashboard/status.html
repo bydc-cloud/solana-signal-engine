@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AURA System Status</title>
+    <style>
+        body { font-family: monospace; padding: 40px; background: #000; color: #0f0; }
+        .test { margin: 20px 0; padding: 15px; border: 1px solid #0f0; }
+        .pass { border-color: #0f0; }
+        .fail { border-color: #f00; color: #f00; }
+        button { background: #0f0; color: #000; border: none; padding: 10px 20px; cursor: pointer; margin: 5px; }
+        pre { background: #111; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🤖 AURA System Status</h1>
+
+    <button onclick="runAllTests()">Run All Tests</button>
+    <button onclick="initAndLoad()">Initialize + Load Trackers</button>
+
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        async function runAllTests() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Running tests...</h2>';
+
+            // Test 1: Wallets endpoint
+            try {
+                const res = await fetch(`${API_BASE}/api/aura/wallets`);
+                const data = await res.json();
+                results.innerHTML += `
+                    <div class="test ${data.count >= 100 ? 'pass' : 'fail'}">
+                        <h3>✓ Wallets Endpoint</h3>
+                        <p>Count: ${data.count} (expected: 162)</p>
+                        <p>Status: ${data.count >= 100 ? '✅ PASS' : '❌ FAIL - Still returning seed data'}</p>
+                        <pre>${JSON.stringify(data.wallets.slice(0,3), null, 2)}</pre>
+                    </div>
+                `;
+            } catch (e) {
+                results.innerHTML += `<div class="test fail"><h3>❌ Wallets Endpoint</h3><p>${e.message}</p></div>`;
+            }
+
+            // Test 2: Database check
+            try {
+                const res = await fetch(`${API_BASE}/api/aura/live/config`);
+                const data = await res.json();
+                const walletCount = data.config.whale_wallets.total;
+                results.innerHTML += `
+                    <div class="test ${walletCount >= 100 ? 'pass' : 'fail'}">
+                        <h3>✓ Database Check</h3>
+                        <p>Wallets in DB: ${walletCount}</p>
+                        <p>CT Monitors in DB: ${data.config.ct_monitors.total}</p>
+                        <p>Status: ${walletCount >= 100 ? '✅ PASS' : '❌ FAIL'}</p>
+                    </div>
+                `;
+            } catch (e) {
+                results.innerHTML += `<div class="test fail"><h3>❌ Database Check</h3><p>${e.message}</p></div>`;
+            }
+
+            // Test 3: ElevenLabs voice
+            try {
+                const res = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: 'Test' })
+                });
+                const contentType = res.headers.get('content-type');
+                const isAudio = contentType && contentType.includes('audio');
+
+                if (isAudio) {
+                    const blob = await res.blob();
+                    results.innerHTML += `
+                        <div class="test pass">
+                            <h3>✓ ElevenLabs Voice</h3>
+                            <p>Status: ✅ WORKING</p>
+                            <p>Audio size: ${blob.size} bytes</p>
+                            <audio controls src="${URL.createObjectURL(blob)}"></audio>
+                        </div>
+                    `;
+                } else {
+                    const error = await res.json();
+                    results.innerHTML += `
+                        <div class="test fail">
+                            <h3>❌ ElevenLabs Voice</h3>
+                            <p>Status: FAILED</p>
+                            <pre>${JSON.stringify(error, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                results.innerHTML += `<div class="test fail"><h3>❌ ElevenLabs Voice</h3><p>${e.message}</p></div>`;
+            }
+
+            // Test 4: Chat endpoint
+            try {
+                const res = await fetch(`${API_BASE}/api/aura/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: 'Hello' })
+                });
+                const data = await res.json();
+                const hasMessage = data.message && data.message.length > 0;
+                results.innerHTML += `
+                    <div class="test ${hasMessage ? 'pass' : 'fail'}">
+                        <h3>✓ Chat Endpoint</h3>
+                        <p>Status: ${hasMessage ? '✅ WORKING' : '❌ FAIL'}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (e) {
+                results.innerHTML += `<div class="test fail"><h3>❌ Chat Endpoint</h3><p>${e.message}</p></div>`;
+            }
+        }
+
+        async function initAndLoad() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Initializing...</h2>';
+
+            try {
+                // Init database
+                results.innerHTML += '<p>🔄 Initializing database...</p>';
+                await fetch(`${API_BASE}/api/aura/init`, { method: 'POST' });
+
+                // Load trackers
+                results.innerHTML += '<p>🔄 Loading trackers...</p>';
+                const loadRes = await fetch(`${API_BASE}/api/aura/load_trackers`, { method: 'POST' });
+                const loadData = await loadRes.json();
+
+                results.innerHTML += `
+                    <div class="test pass">
+                        <h3>✓ Initialization Complete</h3>
+                        <pre>${loadData.output}</pre>
+                    </div>
+                `;
+
+                // Run tests
+                setTimeout(runAllTests, 2000);
+            } catch (e) {
+                results.innerHTML += `<div class="test fail"><h3>❌ Initialization Failed</h3><p>${e.message}</p></div>`;
+            }
+        }
+
+        // Auto-run on load
+        runAllTests();
+    </script>
+</body>
+</html>
