@@ -6,7 +6,7 @@ Combines Helix scanner APIs with AURA autonomous intelligence system
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 import uvicorn
 import asyncio
 import logging
