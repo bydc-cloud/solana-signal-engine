@@ -297,7 +297,7 @@
         </div>
 
         <div class="controls">
-            <button class="control-btn primary" id="startBtn" onclick="startVoice()">Start Voice</button>
+            <button class="control-btn primary" id="startBtn" onclick="startVoice()">Activate AURA</button>
             <button class="control-btn hidden" id="stopBtn" onclick="stopVoice()">Stop</button>
         </div>
     </div>
@@ -307,6 +307,7 @@
         let recognition = null;
         let isListening = false;
         let currentAudio = null;
+        let audioEnabled = false;  // Track if audio has been unlocked by user gesture
 
         // Initialize Speech Recognition (Browser API - FREE!)
         function initSpeechRecognition() {
@@ -411,6 +412,17 @@
         function startVoice() {
             console.log('🎤 Start voice button clicked');
 
+            // Unlock audio on first user interaction
+            if (!audioEnabled) {
+                console.log('🔓 Unlocking audio context with user gesture...');
+                // Create a dummy audio element to unlock the context
+                const dummyAudio = new Audio();
+                dummyAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+                dummyAudio.play().catch(() => {});
+                audioEnabled = true;
+                console.log('✅ Audio context unlocked');
+            }
+
             if (!recognition) {
                 console.log('Initializing speech recognition...');
                 recognition = initSpeechRecognition();
@@ -501,6 +513,8 @@
 
         async function speakWithElevenLabs(text) {
             try {
+                console.log('🔊 Attempting to speak with ElevenLabs...');
+
                 // Call backend endpoint that uses ElevenLabs
                 const response = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
                     method: 'POST',
@@ -514,9 +528,10 @@
 
                 // Get audio blob
                 const audioBlob = await response.blob();
+                console.log('✅ Got audio blob:', audioBlob.size, 'bytes');
                 const audioUrl = URL.createObjectURL(audioBlob);
 
-                // Play audio
+                // Stop any current audio
                 if (currentAudio) {
                     currentAudio.pause();
                     currentAudio = null;
@@ -524,18 +539,39 @@
 
                 currentAudio = new Audio(audioUrl);
 
+                // Enable audio on first user interaction
+                if (!audioEnabled) {
+                    console.log('🔓 Unlocking audio context...');
+                    audioEnabled = true;
+                }
+
                 return new Promise((resolve, reject) => {
                     currentAudio.onended = () => {
+                        console.log('✅ Audio playback completed');
                         URL.revokeObjectURL(audioUrl);
                         resolve();
                     };
-                    currentAudio.onerror = reject;
-                    currentAudio.play().catch(reject);
+                    currentAudio.onerror = (e) => {
+                        console.error('❌ Audio playback error:', e);
+                        reject(e);
+                    };
+
+                    // Try to play, catch permission errors
+                    currentAudio.play()
+                        .then(() => console.log('✅ Audio playing...'))
+                        .catch((err) => {
+                            console.error('❌ Audio play error:', err);
+                            // Safari blocks autoplay - fall back to browser TTS
+                            URL.revokeObjectURL(audioUrl);
+                            console.log('⚠️ Falling back to browser speech synthesis');
+                            speakWithBrowser(text).then(resolve).catch(reject);
+                        });
                 });
 
             } catch (error) {
                 console.error('ElevenLabs error:', error);
                 // Fallback to browser speech
+                console.log('⚠️ Falling back to browser speech synthesis');
                 return speakWithBrowser(text);
             }
         }
