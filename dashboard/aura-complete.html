@@ -227,8 +227,8 @@
                     <div class="stat-card"><div class="stat-label">Tracked Wallets</div><div class="stat-value" id="walletCount">0</div></div>
                 </div>
                 <table class="table" id="walletsTable">
-                    <thead><tr><th>Wallet</th><th>Win Rate</th><th>Avg P&L</th><th>Trades</th><th>Status</th></tr></thead>
-                    <tbody><tr><td colspan="5" style="text-align: center; padding: 3rem; color: #666;">No wallets tracked yet</td></tr></tbody>
+                    <thead><tr><th>Address</th><th>Name</th><th>Win Rate</th><th>Min TX</th><th>Alerts</th><th>Status</th></tr></thead>
+                    <tbody><tr><td colspan="6" style="text-align: center; padding: 3rem; color: #666;">Loading wallets...</td></tr></tbody>
                 </table>
             </div>
 
@@ -517,29 +517,54 @@
             }
         }
 
-        // Text-to-Speech function
-        function speakText(text) {
-            if ('speechSynthesis' in window) {
-                // Cancel any ongoing speech
-                window.speechSynthesis.cancel();
+        // Text-to-Speech function using ElevenLabs
+        let currentAudio = null;
 
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 1.0;
-                utterance.pitch = 1.0;
-                utterance.volume = 1.0;
+        async function speakText(text) {
+            try {
+                console.log('🔊 Speaking with ElevenLabs...');
 
-                // Use a more natural voice if available
-                const voices = window.speechSynthesis.getVoices();
-                const preferredVoice = voices.find(voice =>
-                    voice.name.includes('Google') ||
-                    voice.name.includes('Natural') ||
-                    voice.lang.startsWith('en')
-                );
-                if (preferredVoice) {
-                    utterance.voice = preferredVoice;
+                // Call ElevenLabs API through backend
+                const response = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) {
+                    throw new Error('ElevenLabs failed');
                 }
 
-                window.speechSynthesis.speak(utterance);
+                const audioBlob = await response.blob();
+                console.log('✅ Got ElevenLabs audio:', audioBlob.size, 'bytes');
+
+                // Stop any current audio
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio = null;
+                }
+
+                // Play new audio
+                const audioUrl = URL.createObjectURL(audioBlob);
+                currentAudio = new Audio(audioUrl);
+
+                currentAudio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                };
+
+                await currentAudio.play();
+                console.log('✅ Playing ElevenLabs voice');
+
+            } catch (error) {
+                console.error('ElevenLabs error:', error);
+                // Fallback to browser speech
+                if ('speechSynthesis' in window) {
+                    console.log('⚠️ Falling back to browser speech');
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 1.1;
+                    window.speechSynthesis.speak(utterance);
+                }
             }
         }
 
@@ -593,22 +618,34 @@
                 const response = await fetch(`${API_BASE}/api/aura/wallets`);
                 const data = await response.json();
                 const wallets = data.wallets || [];
+                console.log(`Loaded ${wallets.length} wallets`);
                 document.getElementById('walletCount').textContent = wallets.length;
                 if (wallets.length > 0) {
                     let html = '';
                     wallets.forEach(wallet => {
+                        // Handle both old and new wallet format
+                        const address = wallet.address || 'Unknown';
+                        const nickname = wallet.nickname || 'Whale';
+                        const winRate = wallet.win_rate || 0;
+                        const avgPnl = wallet.avg_pnl || wallet.min_tx || 0;
+                        const totalTrades = wallet.total_trades || wallet.alerts || 0;
+
                         html += `<tr>
-                            <td><code>${wallet.address.substring(0, 8)}...${wallet.address.substring(wallet.address.length - 4)}</code></td>
-                            <td>${wallet.win_rate.toFixed(1)}%</td>
-                            <td class="${wallet.avg_pnl >= 0 ? 'positive' : 'negative'}">$${wallet.avg_pnl.toFixed(2)}</td>
-                            <td>${wallet.total_trades}</td>
+                            <td><code>${address.substring(0, 8)}...${address.substring(address.length - 4)}</code></td>
+                            <td>${nickname}</td>
+                            <td>${winRate.toFixed(1)}%</td>
+                            <td class="${avgPnl >= 0 ? 'positive' : 'negative'}">$${avgPnl.toFixed(0)}</td>
+                            <td>${totalTrades}</td>
                             <td><span class="table-badge">Active</span></td>
                         </tr>`;
                     });
                     document.getElementById('walletsTable').querySelector('tbody').innerHTML = html;
+                } else {
+                    document.getElementById('walletsTable').querySelector('tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#666;">No wallets loaded yet. Loading trackers...</td></tr>';
                 }
             } catch (error) {
                 console.error('Wallets error:', error);
+                document.getElementById('walletsTable').querySelector('tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#dc3545;">Error loading wallets</td></tr>';
             }
         }
 
