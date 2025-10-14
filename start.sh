@@ -19,6 +19,10 @@ python3 run_migrations.py || echo "⚠️  Migrations failed (might already be a
 echo "🐋 Seeding whale wallets..."
 python3 seed_wallets.py || echo "ℹ️  Wallets already seeded"
 
+# Step 2.6: Load CT monitors and whale trackers
+echo "📡 Loading CT monitors and whale trackers..."
+python3 init_trackers_on_startup.py || echo "ℹ️  Trackers init skipped"
+
 # Step 3: Start API server in background
 echo "🌐 Starting API server on port ${PORT:-8000}..."
 uvicorn aura_server:app --host 0.0.0.0 --port ${PORT:-8000} &
