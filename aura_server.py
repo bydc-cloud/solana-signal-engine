@@ -147,6 +147,14 @@ async def dashboard_live():
     """Serve the AURA Live Dashboard with real-time trading data"""
     return FileResponse("dashboard/aura-live.html")
 
+# Jarvis voice interface (full-screen)
+@app.get("/dashboard/jarvis")
+@app.get("/dashboard/aura-jarvis.html")
+@app.get("/jarvis")
+async def dashboard_jarvis():
+    """Serve the full-screen Jarvis-style voice interface"""
+    return FileResponse("dashboard/aura-jarvis.html")
+
 # Firecrawl-style dashboard (alternative)
 @app.get("/dashboard/firecrawl")
 async def dashboard_firecrawl():
