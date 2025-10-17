@@ -227,7 +227,7 @@
                     <div class="stat-card"><div class="stat-label">Tracked Wallets</div><div class="stat-value" id="walletCount">0</div></div>
                 </div>
                 <table class="table" id="walletsTable">
-                    <thead><tr><th>Address</th><th>Name</th><th>Win Rate</th><th>Min TX</th><th>Alerts</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Wallet</th><th>Win Rate</th><th>Trades</th><th>Total P&L</th><th>Last Trade</th><th>Status</th></tr></thead>
                     <tbody><tr><td colspan="6" style="text-align: center; padding: 3rem; color: #666;">Loading wallets...</td></tr></tbody>
                 </table>
             </div>
@@ -615,7 +615,7 @@
 
         async function loadWallets() {
             try {
-                const response = await fetch(`${API_BASE}/api/aura/wallets`);
+                const response = await fetch(`${API_BASE}/api/aura/wallets/v2`);
                 const data = await response.json();
                 const wallets = data.wallets || [];
                 console.log(`Loaded ${wallets.length} wallets`);
@@ -623,21 +623,47 @@
                 if (wallets.length > 0) {
                     let html = '';
                     wallets.forEach(wallet => {
-                        // Handle both old and new wallet format
                         const address = wallet.address || 'Unknown';
                         const nickname = wallet.nickname || 'Whale';
                         const winRate = wallet.win_rate || 0;
-                        const avgPnl = wallet.avg_pnl || wallet.min_tx || 0;
-                        const totalTrades = wallet.total_trades || wallet.alerts || 0;
+                        const totalTrades = wallet.total_trades || 0;
+                        const totalPnl = wallet.total_pnl || 0;
+                        const lastTrade = wallet.last_trade ? new Date(wallet.last_trade).toLocaleDateString() : 'Never';
+                        const isActive = wallet.is_active || totalTrades > 0;
 
-                        html += `<tr>
-                            <td><code>${address.substring(0, 8)}...${address.substring(address.length - 4)}</code></td>
-                            <td>${nickname}</td>
-                            <td>${winRate.toFixed(1)}%</td>
-                            <td class="${avgPnl >= 0 ? 'positive' : 'negative'}">$${avgPnl.toFixed(0)}</td>
-                            <td>${totalTrades}</td>
-                            <td><span class="table-badge">Active</span></td>
-                        </tr>`;
+                        // Only show wallets with trades, or top 50 if none have trades
+                        if (totalTrades > 0 || wallets.filter(w => w.total_trades > 0).length === 0) {
+                            html += `<tr style="${totalTrades === 0 ? 'opacity: 0.5' : ''}; cursor: pointer;"
+                                        onclick="showWalletDetails('${address}')"
+                                        onmouseover="this.style.background='#0a0a0a'"
+                                        onmouseout="this.style.background=''">
+                                <td>
+                                    <div style="font-weight: 600;">${nickname}</div>
+                                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                                        <code style="font-size: 11px; color: #666;">${address.substring(0, 8)}...${address.substring(address.length - 4)}</code>
+                                        <a href="https://solscan.io/account/${address}" target="_blank"
+                                           onclick="event.stopPropagation()"
+                                           style="font-size: 10px; color: #00ff88; text-decoration: none; padding: 2px 6px; background: #00ff8820; border-radius: 4px;">Solscan</a>
+                                        <a href="https://axiom.xyz/address/${address}" target="_blank"
+                                           onclick="event.stopPropagation()"
+                                           style="font-size: 10px; color: #00ff88; text-decoration: none; padding: 2px 6px; background: #00ff8820; border-radius: 4px;">Axiom</a>
+                                    </div>
+                                </td>
+                                <td style="font-weight: 600; color: ${winRate >= 60 ? '#00ff88' : winRate >= 50 ? '#ffa500' : '#666'};">
+                                    ${totalTrades > 0 ? winRate.toFixed(1) + '%' : '-'}
+                                </td>
+                                <td>${totalTrades > 0 ? totalTrades : '-'}</td>
+                                <td class="${totalPnl >= 0 ? 'positive' : 'negative'}" style="font-weight: 600;">
+                                    ${totalTrades > 0 ? '$' + totalPnl.toLocaleString() : '-'}
+                                </td>
+                                <td style="font-size: 12px; color: #999;">${lastTrade}</td>
+                                <td>
+                                    <span class="table-badge" style="background: ${isActive ? '#00ff88' : '#666'}20; color: ${isActive ? '#00ff88' : '#666'};">
+                                        ${isActive ? 'Active' : 'Tracking'}
+                                    </span>
+                                </td>
+                            </tr>`;
+                        }
                     });
                     document.getElementById('walletsTable').querySelector('tbody').innerHTML = html;
                 } else {
