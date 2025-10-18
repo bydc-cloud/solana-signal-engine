@@ -13,6 +13,9 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import json
+from dotenv import load_dotenv
+
+load_dotenv()  # Load .env file
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,6 +26,44 @@ class LiveWhaleTracker:
     def __init__(self, db_path='aura.db'):
         self.db_path = db_path
         self.session = None
+        self.init_tables()
+
+    def init_tables(self):
+        """Initialize database tables for tracking"""
+        conn = sqlite3.connect(self.db_path)
+        cur = conn.cursor()
+
+        # Whale transactions table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS whale_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                wallet_address TEXT NOT NULL,
+                token_address TEXT NOT NULL,
+                type TEXT NOT NULL,
+                amount REAL,
+                value_usd REAL,
+                timestamp TEXT NOT NULL,
+                signature TEXT UNIQUE,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Whale stats table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS whale_stats (
+                wallet_address TEXT PRIMARY KEY,
+                total_trades INTEGER DEFAULT 0,
+                winning_trades INTEGER DEFAULT 0,
+                win_rate REAL DEFAULT 0,
+                total_pnl_usd REAL DEFAULT 0,
+                last_trade_timestamp TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        conn.commit()
+        conn.close()
+        logger.info("✓ Database tables initialized")
 
     async def init(self):
         self.session = aiohttp.ClientSession()
@@ -126,7 +167,7 @@ class LiveWhaleTracker:
         try:
             cur.execute("""
                 INSERT OR IGNORE INTO whale_transactions
-                (wallet_address, token_address, type, value_usd, timestamp, tx_signature)
+                (wallet_address, token_address, type, value_usd, timestamp, signature)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 wallet_address,
