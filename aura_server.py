@@ -664,7 +664,7 @@ async def get_wallet_details(wallet_address: str):
 
         # Get recent trades
         cur.execute("""
-            SELECT token_address, type, value_usd, timestamp, tx_signature
+            SELECT token_address, type, value_usd, timestamp, signature
             FROM whale_transactions
             WHERE wallet_address = ?
             ORDER BY timestamp DESC
