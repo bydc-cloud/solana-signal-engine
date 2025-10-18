@@ -766,6 +766,92 @@
             }
         }
 
+        // Wallet Details Modal
+        async function showWalletDetails(walletAddress) {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/wallet/${walletAddress}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    alert(`Error: ${data.error}`);
+                    return;
+                }
+
+                const wallet = data.wallet;
+                const stats = data.stats;
+                const trades = data.recent_trades || [];
+
+                // Build modal content
+                let html = `
+                    <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="this.remove()">
+                        <div style="background: #0a0a0a; border: 1px solid #00ff88; border-radius: 12px; max-width: 900px; width: 90%; max-height: 90vh; overflow: auto; padding: 2rem;" onclick="event.stopPropagation()">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                                <h2 style="margin: 0; color: #00ff88;">${wallet.nickname}</h2>
+                                <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; color: #999; font-size: 24px; cursor: pointer;">&times;</button>
+                            </div>
+
+                            <div style="margin-bottom: 1.5rem;">
+                                <code style="font-size: 12px; color: #666;">${wallet.address}</code>
+                                <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                                    <a href="${wallet.solscan_url}" target="_blank" style="color: #00ff88; text-decoration: none; font-size: 14px;">View on Solscan →</a>
+                                    <a href="${wallet.axiom_url}" target="_blank" style="color: #00ff88; text-decoration: none; font-size: 14px;">View on Axiom →</a>
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                                <div style="background: #111; padding: 1rem; border-radius: 8px;">
+                                    <div style="color: #666; font-size: 12px; margin-bottom: 0.5rem;">WIN RATE</div>
+                                    <div style="font-size: 24px; font-weight: 600; color: ${stats.win_rate >= 60 ? '#00ff88' : stats.win_rate >= 50 ? '#ffa500' : '#ff4444'};">${stats.win_rate.toFixed(1)}%</div>
+                                </div>
+                                <div style="background: #111; padding: 1rem; border-radius: 8px;">
+                                    <div style="color: #666; font-size: 12px; margin-bottom: 0.5rem;">TOTAL TRADES</div>
+                                    <div style="font-size: 24px; font-weight: 600;">${stats.total_trades}</div>
+                                </div>
+                                <div style="background: #111; padding: 1rem; border-radius: 8px;">
+                                    <div style="color: #666; font-size: 12px; margin-bottom: 0.5rem;">WINNING TRADES</div>
+                                    <div style="font-size: 24px; font-weight: 600; color: #00ff88;">${stats.winning_trades}</div>
+                                </div>
+                                <div style="background: #111; padding: 1rem; border-radius: 8px;">
+                                    <div style="color: #666; font-size: 12px; margin-bottom: 0.5rem;">TOTAL P&L</div>
+                                    <div style="font-size: 24px; font-weight: 600; color: ${stats.total_pnl >= 0 ? '#00ff88' : '#ff4444'};">\$${stats.total_pnl.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                                </div>
+                            </div>
+
+                            <h3 style="margin-bottom: 1rem; color: #00ff88;">Recent Trades (${trades.length})</h3>
+                            ${trades.length === 0 ? '<div style="text-align: center; color: #666; padding: 2rem;">No recent trades</div>' : `
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                ${trades.map(trade => `
+                                    <div style="background: #111; padding: 1rem; margin-bottom: 0.5rem; border-radius: 6px; border-left: 3px solid ${trade.type === 'buy' ? '#00ff88' : '#ff4444'};">
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                            <div>
+                                                <span style="font-weight: 600; color: ${trade.type === 'buy' ? '#00ff88' : '#ff4444'}; text-transform: uppercase;">${trade.type}</span>
+                                                <code style="margin-left: 1rem; font-size: 11px; color: #666;">${trade.token_address.substring(0, 12)}...</code>
+                                            </div>
+                                            <div style="font-weight: 600;">\$${trade.value_usd.toFixed(2)}</div>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666;">
+                                            <div>${new Date(trade.timestamp).toLocaleString()}</div>
+                                            <div>
+                                                <a href="${trade.solscan_url}" target="_blank" style="color: #00ff88; text-decoration: none; margin-right: 1rem;">Solscan</a>
+                                                <a href="${trade.axiom_url}" target="_blank" style="color: #00ff88; text-decoration: none;">Axiom</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+
+                // Add modal to page
+                document.body.insertAdjacentHTML('beforeend', html);
+            } catch (error) {
+                console.error('Error loading wallet details:', error);
+                alert('Failed to load wallet details');
+            }
+        }
+
         // Twitter/X Tab
         async function loadTwitter() {
             try {
