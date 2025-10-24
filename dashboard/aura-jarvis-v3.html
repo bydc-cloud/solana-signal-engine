@@ -275,6 +275,86 @@
             font-size: 15px;
             line-height: 1.6;
         }
+
+        .quick-commands {
+            padding: 12px 16px;
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            flex-wrap: wrap;
+        }
+
+        .quick-btn {
+            padding: 8px 14px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        .quick-btn:hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+            transform: translateY(-1px);
+        }
+
+        .tool-result {
+            margin-top: 8px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .tool-result-title {
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 6px;
+        }
+
+        .wallet-card, .signal-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 6px 0;
+        }
+
+        .wallet-card:hover, .signal-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+
+        .stat-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #e7f1ff;
+            color: #0066cc;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin: 2px;
+        }
+
+        .stat-badge.positive {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .stat-badge.negative {
+            background: #f8d7da;
+            color: #721c24;
+        }
     </style>
 </head>
 <body>
@@ -289,7 +369,26 @@
                 <div class="status-dot"></div>
                 <span class="status-text" id="statusText">Ready to help</span>
             </div>
-            <div style="font-size: 12px; color: #6c757d;">162 wallets • 448 CT monitors</div>
+            <div style="font-size: 12px; color: #6c757d;">174 wallets • 448 CT monitors</div>
+        </div>
+
+        <!-- Quick Commands -->
+        <div class="quick-commands" id="quickCommands">
+            <button class="quick-btn" onclick="sendQuickCommand('Show me the top 5 whale wallets')">
+                🐋 Top Whales
+            </button>
+            <button class="quick-btn" onclick="sendQuickCommand('What are the latest signals?')">
+                📊 Latest Signals
+            </button>
+            <button class="quick-btn" onclick="sendQuickCommand('Run whale tracking now')">
+                🔄 Track All
+            </button>
+            <button class="quick-btn" onclick="sendQuickCommand('Show system status')">
+                ⚙️ System Status
+            </button>
+            <button class="quick-btn" onclick="sendQuickCommand('Show my portfolio')">
+                💼 Portfolio
+            </button>
         </div>
 
         <div class="chat-container" id="chatContainer">
@@ -399,6 +498,11 @@
             document.getElementById('statusText').textContent = 'Ready to help';
         }
 
+        function sendQuickCommand(command) {
+            document.getElementById('textInput').value = command;
+            sendMessage();
+        }
+
         async function sendMessage() {
             const input = document.getElementById('textInput');
             const message = input.value.trim();
@@ -427,12 +531,13 @@
 
                 const data = await response.json();
                 const reply = data.message || data.response || 'I understand.';
+                const toolResults = data.tool_results || [];
 
                 // Hide typing indicator
                 hideTyping();
 
-                // Add AURA response
-                addMessage('aura', reply);
+                // Add AURA response with tool results
+                addMessage('aura', reply, toolResults);
 
                 // Update status
                 document.getElementById('statusText').textContent = 'Speaking...';
@@ -451,7 +556,7 @@
             }
         }
 
-        function addMessage(role, content) {
+        function addMessage(role, content, toolResults = []) {
             const chatContainer = document.getElementById('chatContainer');
 
             // Remove welcome message if exists
@@ -470,6 +575,16 @@
             messageContent.className = 'message-content';
             messageContent.textContent = content;
 
+            // Add tool results if any
+            if (toolResults && toolResults.length > 0) {
+                toolResults.forEach(toolResult => {
+                    const toolDiv = formatToolResult(toolResult);
+                    if (toolDiv) {
+                        messageContent.appendChild(toolDiv);
+                    }
+                });
+            }
+
             messageDiv.appendChild(avatar);
             messageDiv.appendChild(messageContent);
 
@@ -479,7 +594,101 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
 
             // Store in history
-            conversationHistory.push({ role, content });
+            conversationHistory.push({ role, content, toolResults });
+        }
+
+        function formatToolResult(toolResult) {
+            const tool = toolResult.tool;
+            const result = toolResult.result;
+
+            if (!result || result.error) {
+                return null;
+            }
+
+            const container = document.createElement('div');
+            container.className = 'tool-result';
+
+            // Format based on tool type
+            if (tool === 'get_whale_wallets' && result.wallets) {
+                container.innerHTML = `<div class="tool-result-title">🐋 Whale Wallets</div>`;
+                result.wallets.slice(0, 5).forEach(w => {
+                    const card = document.createElement('div');
+                    card.className = 'wallet-card';
+                    card.innerHTML = `
+                        <div style="font-weight: 600; margin-bottom: 4px;">${w.nickname}</div>
+                        <div style="font-size: 11px; color: #6c757d; margin-bottom: 4px;">${w.address.substring(0, 8)}...${w.address.substring(w.address.length - 6)}</div>
+                        <span class="stat-badge ${w.win_rate > 60 ? 'positive' : ''}">${w.win_rate}% Win Rate</span>
+                        <span class="stat-badge">${w.total_trades} Trades</span>
+                        <span class="stat-badge ${w.total_pnl > 0 ? 'positive' : 'negative'}">$${w.total_pnl.toFixed(2)} P&L</span>
+                    `;
+                    container.appendChild(card);
+                });
+
+            } else if (tool === 'get_recent_signals' && result.signals) {
+                container.innerHTML = `<div class="tool-result-title">📊 Recent Signals</div>`;
+                result.signals.slice(0, 5).forEach(s => {
+                    const card = document.createElement('div');
+                    card.className = 'signal-card';
+                    card.innerHTML = `
+                        <div style="font-weight: 600; margin-bottom: 4px;">${s.symbol}</div>
+                        <div style="font-size: 11px; color: #6c757d; margin-bottom: 4px;">${s.address.substring(0, 8)}...</div>
+                        <span class="stat-badge">Momentum: ${s.momentum.toFixed(1)}</span>
+                        <span class="stat-badge">Vol: $${(s.volume / 1000).toFixed(1)}K</span>
+                        <span class="stat-badge">MCap: $${(s.mcap / 1000).toFixed(1)}K</span>
+                    `;
+                    container.appendChild(card);
+                });
+
+            } else if (tool === 'get_wallet_details' && result.wallet) {
+                container.innerHTML = `<div class="tool-result-title">🔍 Wallet Details</div>`;
+                const card = document.createElement('div');
+                card.className = 'wallet-card';
+                card.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 4px;">${result.wallet.nickname}</div>
+                    <div style="font-size: 11px; color: #6c757d; margin-bottom: 6px;">${result.wallet.address}</div>
+                    <span class="stat-badge ${result.stats.win_rate > 60 ? 'positive' : ''}">${result.stats.win_rate}% WR</span>
+                    <span class="stat-badge">${result.stats.total_trades} Trades</span>
+                    <span class="stat-badge ${result.stats.total_pnl > 0 ? 'positive' : 'negative'}">$${result.stats.total_pnl.toFixed(2)}</span>
+                `;
+                container.appendChild(card);
+
+            } else if (tool === 'get_system_status') {
+                container.innerHTML = `
+                    <div class="tool-result-title">⚙️ System Status</div>
+                    <div style="margin-top: 6px;">
+                        <span class="stat-badge">${result.wallets_tracked} Wallets</span>
+                        <span class="stat-badge">${result.signals_24h} Signals (24h)</span>
+                        <span class="stat-badge">${result.trades_24h} Trades (24h)</span>
+                        <span class="stat-badge positive">${result.status.toUpperCase()}</span>
+                    </div>
+                `;
+
+            } else if (tool === 'track_whale_wallet' && result.success) {
+                container.innerHTML = `
+                    <div class="tool-result-title">✅ Wallet Added</div>
+                    <div style="margin-top: 6px;">
+                        <span class="stat-badge positive">${result.nickname}</span>
+                        <span class="stat-badge">${result.address.substring(0, 8)}...</span>
+                    </div>
+                `;
+
+            } else if (tool === 'trigger_whale_tracking' && result.success) {
+                container.innerHTML = `
+                    <div class="tool-result-title">🔄 Tracking Started</div>
+                    <div style="margin-top: 6px;">
+                        <span class="stat-badge positive">Process ID: ${result.pid}</span>
+                    </div>
+                `;
+
+            } else {
+                // Generic formatting
+                container.innerHTML = `
+                    <div class="tool-result-title">📋 ${tool.replace(/_/g, ' ').toUpperCase()}</div>
+                    <pre style="margin: 6px 0 0 0; white-space: pre-wrap; font-size: 11px;">${JSON.stringify(result, null, 2)}</pre>
+                `;
+            }
+
+            return container;
         }
 
         function showTyping() {

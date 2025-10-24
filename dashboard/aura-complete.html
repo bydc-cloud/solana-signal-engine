@@ -330,8 +330,8 @@
         let animationId = null;
         let silenceTimeout = null;
         let lastSoundTime = 0;
-        const SILENCE_THRESHOLD = 30;
-        const SILENCE_DURATION = 1500;
+        const SILENCE_THRESHOLD = 20;  // Lower = more sensitive to silence
+        const SILENCE_DURATION = 2500;  // Wait 2.5 seconds of silence before auto-stop
 
         async function toggleVoice() {
             const voiceBtn = document.getElementById('voiceBtn');
