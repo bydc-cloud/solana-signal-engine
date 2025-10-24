@@ -221,13 +221,40 @@
                 </div>
             </div>
 
-            <!-- Wallets, Watchlist, Portfolio tabs same as before -->
+            <!-- Wallets Tab with Interactive Features -->
             <div class="tab-content" id="wallets-tab">
+                <!-- Stats Cards -->
                 <div class="stats-grid">
-                    <div class="stat-card"><div class="stat-label">Tracked Wallets</div><div class="stat-value" id="walletCount">0</div></div>
+                    <div class="stat-card"><div class="stat-label">Total Wallets</div><div class="stat-value" id="walletCount">0</div></div>
+                    <div class="stat-card"><div class="stat-label">Avg Win Rate</div><div class="stat-value positive" id="avgWinRate">0%</div></div>
+                    <div class="stat-card"><div class="stat-label">Active Wallets</div><div class="stat-value" id="activeWallets">0</div></div>
+                    <div class="stat-card"><div class="stat-label">Total Volume</div><div class="stat-value" id="totalVolume">$0</div></div>
                 </div>
+
+                <!-- Search and Filter Controls -->
+                <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                    <input type="text" id="walletSearch" placeholder="Search wallet name or address..."
+                           style="flex: 1; min-width: 250px; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 8px; padding: 0.75rem; color: #fff; font-size: 14px;"
+                           oninput="filterWallets()">
+                    <button onclick="filterBy('all')" id="filterAll" class="filter-btn active" style="padding: 0.75rem 1.5rem; background: #00ff88; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">All</button>
+                    <button onclick="filterBy('active')" id="filterActive" class="filter-btn" style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #666; border: 1px solid #2a2a2a; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">Active Only</button>
+                    <button onclick="filterBy('profitable')" id="filterProfitable" class="filter-btn" style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #666; border: 1px solid #2a2a2a; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">Profitable</button>
+                    <button onclick="filterBy('highWinRate')" id="filterHighWinRate" class="filter-btn" style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #666; border: 1px solid #2a2a2a; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">High Win Rate (>60%)</button>
+                    <button onclick="refreshWallets()" style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #00ff88; border: 1px solid #00ff88; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">🔄 Refresh</button>
+                </div>
+
+                <!-- Wallet Table -->
                 <table class="table" id="walletsTable">
-                    <thead><tr><th>Wallet</th><th>Win Rate</th><th>Trades</th><th>Total P&L</th><th>Last Trade</th><th>Status</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th onclick="sortWallets('nickname')" style="cursor: pointer; user-select: none;">Wallet ↕</th>
+                            <th onclick="sortWallets('win_rate')" style="cursor: pointer; user-select: none;">Win Rate ↕</th>
+                            <th onclick="sortWallets('total_trades')" style="cursor: pointer; user-select: none;">Trades ↕</th>
+                            <th onclick="sortWallets('total_pnl')" style="cursor: pointer; user-select: none;">Total P&L ↕</th>
+                            <th onclick="sortWallets('last_trade')" style="cursor: pointer; user-select: none;">Last Trade ↕</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
                     <tbody><tr><td colspan="6" style="text-align: center; padding: 3rem; color: #666;">Loading wallets...</td></tr></tbody>
                 </table>
             </div>
@@ -277,6 +304,9 @@
         let currentTab = 'chat';
         let mediaRecorder = null;
         let audioChunks = [];
+        let allWallets = [];
+        let currentFilter = 'all';
+        let currentSort = { field: 'win_rate', direction: 'desc' };
 
         function switchTab(tabName) {
             currentTab = tabName;
@@ -613,62 +643,140 @@
             }
         }
 
+        // Search, Filter, and Sort Functions
+        function filterBy(type) {
+            currentFilter = type;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.style.background = '#1a1a1a';
+                btn.style.color = '#666';
+                btn.style.border = '1px solid #2a2a2a';
+            });
+            document.getElementById(`filter${type.charAt(0).toUpperCase() + type.slice(1)}`).style.background = '#00ff88';
+            document.getElementById(`filter${type.charAt(0).toUpperCase() + type.slice(1)}`).style.color = '#000';
+            document.getElementById(`filter${type.charAt(0).toUpperCase() + type.slice(1)}`).style.border = 'none';
+            renderWallets();
+        }
+
+        function filterWallets() {
+            renderWallets();
+        }
+
+        function sortWallets(field) {
+            if (currentSort.field === field) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.direction = 'desc';
+            }
+            renderWallets();
+        }
+
+        function refreshWallets() {
+            loadWallets();
+        }
+
+        function renderWallets() {
+            const searchTerm = document.getElementById('walletSearch').value.toLowerCase();
+
+            // Filter wallets
+            let filtered = allWallets.filter(wallet => {
+                const matchesSearch = wallet.nickname.toLowerCase().includes(searchTerm) ||
+                                     wallet.address.toLowerCase().includes(searchTerm);
+
+                if (!matchesSearch) return false;
+
+                switch(currentFilter) {
+                    case 'active':
+                        return wallet.total_trades > 0;
+                    case 'profitable':
+                        return wallet.total_pnl > 0;
+                    case 'highWinRate':
+                        return wallet.win_rate >= 60;
+                    default:
+                        return true;
+                }
+            });
+
+            // Sort wallets
+            filtered.sort((a, b) => {
+                let aVal = a[currentSort.field] || 0;
+                let bVal = b[currentSort.field] || 0;
+
+                if (currentSort.field === 'nickname') {
+                    aVal = (a.nickname || '').toLowerCase();
+                    bVal = (b.nickname || '').toLowerCase();
+                }
+
+                if (currentSort.direction === 'asc') {
+                    return aVal > bVal ? 1 : -1;
+                } else {
+                    return aVal < bVal ? 1 : -1;
+                }
+            });
+
+            // Calculate stats
+            const activeCount = allWallets.filter(w => w.total_trades > 0).length;
+            const avgWinRate = allWallets.filter(w => w.total_trades > 0).reduce((sum, w) => sum + w.win_rate, 0) / activeCount || 0;
+            const totalVolume = allWallets.reduce((sum, w) => sum + Math.abs(w.total_pnl || 0), 0);
+
+            document.getElementById('walletCount').textContent = allWallets.length;
+            document.getElementById('activeWallets').textContent = activeCount;
+            document.getElementById('avgWinRate').textContent = avgWinRate.toFixed(1) + '%';
+            document.getElementById('totalVolume').textContent = '$' + totalVolume.toLocaleString();
+
+            // Render table
+            let html = '';
+            filtered.forEach(wallet => {
+                const address = wallet.address || 'Unknown';
+                const nickname = wallet.nickname || 'Whale';
+                const winRate = wallet.win_rate || 0;
+                const totalTrades = wallet.total_trades || 0;
+                const totalPnl = wallet.total_pnl || 0;
+                const lastTrade = wallet.last_trade ? new Date(wallet.last_trade).toLocaleDateString() : 'Never';
+                const isActive = wallet.is_active || totalTrades > 0;
+
+                html += `<tr style="${totalTrades === 0 ? 'opacity: 0.5' : ''}; cursor: pointer;"
+                            onclick="showWalletDetails('${address}')"
+                            onmouseover="this.style.background='#0a0a0a'"
+                            onmouseout="this.style.background=''">
+                    <td>
+                        <div style="font-weight: 600;">${nickname}</div>
+                        <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                            <code style="font-size: 11px; color: #666;">${address.substring(0, 8)}...${address.substring(address.length - 4)}</code>
+                            <a href="https://solscan.io/account/${address}" target="_blank"
+                               onclick="event.stopPropagation()"
+                               style="font-size: 10px; color: #00ff88; text-decoration: none; padding: 2px 6px; background: #00ff8820; border-radius: 4px;">Solscan</a>
+                            <a href="https://axiom.xyz/address/${address}" target="_blank"
+                               onclick="event.stopPropagation()"
+                               style="font-size: 10px; color: #00ff88; text-decoration: none; padding: 2px 6px; background: #00ff8820; border-radius: 4px;">Axiom</a>
+                        </div>
+                    </td>
+                    <td style="font-weight: 600; color: ${winRate >= 60 ? '#00ff88' : winRate >= 50 ? '#ffa500' : '#666'};">
+                        ${totalTrades > 0 ? winRate.toFixed(1) + '%' : '-'}
+                    </td>
+                    <td>${totalTrades > 0 ? totalTrades : '-'}</td>
+                    <td class="${totalPnl >= 0 ? 'positive' : 'negative'}" style="font-weight: 600;">
+                        ${totalTrades > 0 ? '$' + totalPnl.toLocaleString() : '-'}
+                    </td>
+                    <td style="font-size: 12px; color: #999;">${lastTrade}</td>
+                    <td>
+                        <span class="table-badge" style="background: ${isActive ? '#00ff88' : '#666'}20; color: ${isActive ? '#00ff88' : '#666'};">
+                            ${isActive ? 'Active' : 'Tracking'}
+                        </span>
+                    </td>
+                </tr>`;
+            });
+
+            document.getElementById('walletsTable').querySelector('tbody').innerHTML = html || '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#666;">No wallets match filters</td></tr>';
+        }
+
         async function loadWallets() {
             try {
                 const response = await fetch(`${API_BASE}/api/aura/wallets/v2`);
                 const data = await response.json();
-                const wallets = data.wallets || [];
-                console.log(`Loaded ${wallets.length} wallets`);
-                document.getElementById('walletCount').textContent = wallets.length;
-                if (wallets.length > 0) {
-                    let html = '';
-                    wallets.forEach(wallet => {
-                        const address = wallet.address || 'Unknown';
-                        const nickname = wallet.nickname || 'Whale';
-                        const winRate = wallet.win_rate || 0;
-                        const totalTrades = wallet.total_trades || 0;
-                        const totalPnl = wallet.total_pnl || 0;
-                        const lastTrade = wallet.last_trade ? new Date(wallet.last_trade).toLocaleDateString() : 'Never';
-                        const isActive = wallet.is_active || totalTrades > 0;
-
-                        // Only show wallets with trades, or top 50 if none have trades
-                        if (totalTrades > 0 || wallets.filter(w => w.total_trades > 0).length === 0) {
-                            html += `<tr style="${totalTrades === 0 ? 'opacity: 0.5' : ''}; cursor: pointer;"
-                                        onclick="showWalletDetails('${address}')"
-                                        onmouseover="this.style.background='#0a0a0a'"
-                                        onmouseout="this.style.background=''">
-                                <td>
-                                    <div style="font-weight: 600;">${nickname}</div>
-                                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
-                                        <code style="font-size: 11px; color: #666;">${address.substring(0, 8)}...${address.substring(address.length - 4)}</code>
-                                        <a href="https://solscan.io/account/${address}" target="_blank"
-                                           onclick="event.stopPropagation()"
-                                           style="font-size: 10px; color: #00ff88; text-decoration: none; padding: 2px 6px; background: #00ff8820; border-radius: 4px;">Solscan</a>
-                                        <a href="https://axiom.xyz/address/${address}" target="_blank"
-                                           onclick="event.stopPropagation()"
-                                           style="font-size: 10px; color: #00ff88; text-decoration: none; padding: 2px 6px; background: #00ff8820; border-radius: 4px;">Axiom</a>
-                                    </div>
-                                </td>
-                                <td style="font-weight: 600; color: ${winRate >= 60 ? '#00ff88' : winRate >= 50 ? '#ffa500' : '#666'};">
-                                    ${totalTrades > 0 ? winRate.toFixed(1) + '%' : '-'}
-                                </td>
-                                <td>${totalTrades > 0 ? totalTrades : '-'}</td>
-                                <td class="${totalPnl >= 0 ? 'positive' : 'negative'}" style="font-weight: 600;">
-                                    ${totalTrades > 0 ? '$' + totalPnl.toLocaleString() : '-'}
-                                </td>
-                                <td style="font-size: 12px; color: #999;">${lastTrade}</td>
-                                <td>
-                                    <span class="table-badge" style="background: ${isActive ? '#00ff88' : '#666'}20; color: ${isActive ? '#00ff88' : '#666'};">
-                                        ${isActive ? 'Active' : 'Tracking'}
-                                    </span>
-                                </td>
-                            </tr>`;
-                        }
-                    });
-                    document.getElementById('walletsTable').querySelector('tbody').innerHTML = html;
-                } else {
-                    document.getElementById('walletsTable').querySelector('tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#666;">No wallets loaded yet. Loading trackers...</td></tr>';
-                }
+                allWallets = data.wallets || [];
+                console.log(`Loaded ${allWallets.length} wallets`);
+                renderWallets();
             } catch (error) {
                 console.error('Wallets error:', error);
                 document.getElementById('walletsTable').querySelector('tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#dc3545;">Error loading wallets</td></tr>';
@@ -902,11 +1010,121 @@
             }
         }
 
-        // Auto-refresh
+        // WebSocket Connection for Real-Time Updates
+        let ws = null;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
+
+        function connectWebSocket() {
+            try {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    reconnectAttempts = 0;
+                    document.getElementById('statusText').textContent = 'Online (Live)';
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (e) {
+                        console.log('WebSocket message:', event.data);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+
+                ws.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    document.getElementById('statusText').textContent = 'Reconnecting...';
+
+                    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                        reconnectAttempts++;
+                        setTimeout(connectWebSocket, 3000 * reconnectAttempts);
+                    } else {
+                        document.getElementById('statusText').textContent = 'Offline';
+                    }
+                };
+            } catch (error) {
+                console.error('WebSocket connection error:', error);
+                document.getElementById('statusText').textContent = 'WebSocket not available';
+            }
+        }
+
+        function handleWebSocketMessage(data) {
+            if (data.type === 'whale_trade') {
+                // New whale trade detected
+                console.log('New whale trade:', data);
+                showTradeNotification(data);
+                if (currentTab === 'wallets') {
+                    refreshWallets();
+                }
+            } else if (data.type === 'signal') {
+                // New signal detected
+                if (currentTab === 'signals') {
+                    loadSignals();
+                }
+            } else if (data.type === 'wallet_update') {
+                // Wallet stats updated
+                if (currentTab === 'wallets') {
+                    updateWalletInTable(data.wallet);
+                }
+            }
+        }
+
+        function showTradeNotification(data) {
+            // Show desktop notification if permitted
+            if ("Notification" in window && Notification.permission === "granted") {
+                const notification = new Notification('Whale Trade Alert', {
+                    body: `${data.wallet_nickname || 'Whale'} made a ${data.trade_type} worth $${data.value_usd.toFixed(2)}`,
+                    icon: '/favicon.ico',
+                    tag: 'whale-trade'
+                });
+
+                setTimeout(() => notification.close(), 5000);
+            }
+
+            // Show in-app notification
+            const notifDiv = document.createElement('div');
+            notifDiv.style.cssText = 'position: fixed; top: 80px; right: 20px; background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%); color: #000; padding: 1rem 1.5rem; border-radius: 8px; font-weight: 600; z-index: 9999; box-shadow: 0 4px 20px rgba(0,255,136,0.3); animation: slideIn 0.3s ease-out;';
+            notifDiv.textContent = `Trade Alert: ${data.wallet_nickname || 'Whale'} ${data.trade_type} $${data.value_usd.toFixed(2)}`;
+            document.body.appendChild(notifDiv);
+
+            setTimeout(() => {
+                notifDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notifDiv.remove(), 300);
+            }, 4000);
+        }
+
+        function updateWalletInTable(walletData) {
+            // Update a specific wallet row without full refresh
+            const walletIndex = allWallets.findIndex(w => w.address === walletData.address);
+            if (walletIndex !== -1) {
+                allWallets[walletIndex] = walletData;
+                renderWallets();
+            }
+        }
+
+        // Request notification permission
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+
+        // Auto-refresh (with less frequency since WebSocket provides real-time updates)
         setInterval(() => {
             if (currentTab === 'signals') loadSignals();
             if (currentTab === 'portfolio') loadPortfolio();
-        }, 10000);
+            if (currentTab === 'wallets') loadWallets();
+        }, 30000); // Refresh every 30 seconds
+
+        // Connect WebSocket on load
+        connectWebSocket();
 
         // Initialize
         loadSignals();
