@@ -147,6 +147,13 @@ async def dashboard_live():
     """Serve the AURA Live Dashboard with real-time trading data"""
     return FileResponse("dashboard/aura-live.html")
 
+# AURA Complete Dashboard - WHALE TRACKING
+@app.get("/dashboard/aura-complete.html")
+@app.get("/dashboard/complete")
+async def dashboard_aura_complete():
+    """Serve the complete AURA dashboard with whale wallet tracking"""
+    return FileResponse("dashboard/aura-complete.html")
+
 # Jarvis voice interface (full-screen) - V3 FRIENDLY CHAT UI
 @app.get("/dashboard/jarvis")
 @app.get("/dashboard/aura-jarvis.html")
