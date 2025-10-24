@@ -274,7 +274,8 @@ async def aura_voice(request: Request):
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio,
-                    language="en"  # Specify English for better accuracy
+                    language="en",  # Specify English for better accuracy
+                    prompt="Show top wallets. Track wallet. Any good signals? What's raydiance? Check portfolio."  # Context hints for better transcription
                 )
                 logger.info(f"Whisper success: {transcript.text[:50]}...")
 
