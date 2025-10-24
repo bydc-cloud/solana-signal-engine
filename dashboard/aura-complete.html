@@ -549,10 +549,21 @@
 
         // Text-to-Speech function using ElevenLabs
         let currentAudio = null;
+        let isSpeaking = false;
 
         async function speakText(text) {
+            // Don't allow multiple concurrent speeches
+            if (isSpeaking) {
+                console.log('⚠️ Already speaking, queuing...');
+                if (currentAudio) {
+                    currentAudio.pause();
+                }
+            }
+
+            isSpeaking = true;
+
             try {
-                console.log('🔊 Speaking with ElevenLabs...');
+                console.log('🔊 Speaking with ElevenLabs:', text.substring(0, 50) + '...');
 
                 // Call ElevenLabs API through backend
                 const response = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
@@ -561,12 +572,26 @@
                     body: JSON.stringify({ text: text })
                 });
 
+                console.log('📡 ElevenLabs response status:', response.status);
+
                 if (!response.ok) {
-                    throw new Error('ElevenLabs failed');
+                    const errorData = await response.json();
+                    console.error('❌ ElevenLabs error:', errorData);
+                    throw new Error('ElevenLabs failed: ' + (errorData.error || response.status));
+                }
+
+                // Check if response is JSON error or audio
+                const contentType = response.headers.get('content-type');
+                console.log('📄 Content-Type:', contentType);
+
+                if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    console.error('❌ ElevenLabs returned error:', errorData);
+                    throw new Error('ElevenLabs error: ' + (errorData.error || 'Unknown'));
                 }
 
                 const audioBlob = await response.blob();
-                console.log('✅ Got ElevenLabs audio:', audioBlob.size, 'bytes');
+                console.log('✅ Got ElevenLabs audio:', audioBlob.size, 'bytes, type:', audioBlob.type);
 
                 // Stop any current audio
                 if (currentAudio) {
@@ -579,20 +604,41 @@
                 currentAudio = new Audio(audioUrl);
 
                 currentAudio.onended = () => {
+                    console.log('✅ Audio playback complete');
+                    URL.revokeObjectURL(audioUrl);
+                    isSpeaking = false;
+                };
+
+                currentAudio.onerror = (e) => {
+                    console.error('❌ Audio playback error:', e);
+                    isSpeaking = false;
                     URL.revokeObjectURL(audioUrl);
                 };
 
+                // Enable audio context on first play
                 await currentAudio.play();
                 console.log('✅ Playing ElevenLabs voice');
 
             } catch (error) {
-                console.error('ElevenLabs error:', error);
+                console.error('❌ ElevenLabs error:', error);
+                isSpeaking = false;
+
                 // Fallback to browser speech
                 if ('speechSynthesis' in window) {
-                    console.log('⚠️ Falling back to browser speech');
+                    console.log('⚠️ Falling back to browser speech synthesis');
                     window.speechSynthesis.cancel();
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.rate = 1.1;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 1.0;
+                    utterance.onend = () => {
+                        console.log('✅ Browser speech complete');
+                        isSpeaking = false;
+                    };
+                    utterance.onerror = (e) => {
+                        console.error('❌ Browser speech error:', e);
+                        isSpeaking = false;
+                    };
                     window.speechSynthesis.speak(utterance);
                 }
             }
