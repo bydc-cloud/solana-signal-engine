@@ -140,9 +140,213 @@
         .log-level.success { background: rgba(0, 255, 136, 0.1); color: #00ff88; }
 
         ::-webkit-scrollbar-thumb:hover { background: #2a2a2a; }
+
+        /* Voice Widget Dot - Fixed Position */
+        .voice-widget-dot {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.4);
+            transition: all 0.3s ease;
+            z-index: 9998;
+        }
+
+        .voice-widget-dot:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 30px rgba(0, 255, 136, 0.6);
+        }
+
+        .voice-widget-dot::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: inherit;
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        .voice-widget-dot.listening {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .voice-widget-dot.speaking {
+            animation: speak 0.6s ease-in-out infinite;
+        }
+
+        @keyframes speak {
+            0%, 100% { transform: scale(1); }
+            25% { transform: scale(1.08); }
+            75% { transform: scale(1.12); }
+        }
+
+        .voice-widget-icon {
+            width: 24px;
+            height: 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Voice Panel Popup */
+        .voice-widget-panel {
+            position: fixed;
+            bottom: 90px;
+            right: 24px;
+            width: 400px;
+            max-height: 500px;
+            background: #0a0a0a;
+            border: 1px solid #00ff88;
+            border-radius: 16px;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 9999;
+        }
+
+        .voice-widget-panel.active {
+            display: flex;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .voice-widget-header {
+            padding: 16px;
+            border-bottom: 1px solid #1a1a1a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .voice-widget-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #00ff88;
+        }
+
+        .voice-widget-close {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+        }
+
+        .voice-widget-close:hover { color: #fff; }
+
+        .voice-widget-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .voice-widget-message {
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .voice-widget-message.user {
+            background: #1a1a1a;
+            color: #fff;
+            margin-left: 40px;
+        }
+
+        .voice-widget-message.assistant {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            margin-right: 40px;
+        }
+
+        .voice-widget-status {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            padding: 8px;
+        }
+
+        .voice-widget-input-area {
+            padding: 16px;
+            border-top: 1px solid #1a1a1a;
+            display: flex;
+            gap: 8px;
+        }
+
+        .voice-widget-input {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .voice-widget-input:focus {
+            outline: none;
+            border-color: #00ff88;
+        }
+
+        .voice-widget-send {
+            background: #00ff88;
+            border: none;
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .voice-widget-send:hover {
+            background: #00d4ff;
+        }
     </style>
 </head>
 <body>
+    <!-- Voice Widget Dot -->
+    <div class="voice-widget-dot" id="voiceWidgetDot" onclick="toggleVoicePanel()">
+        <svg class="voice-widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+    </div>
+
+    <!-- Voice Widget Panel -->
+    <div class="voice-widget-panel" id="voiceWidgetPanel">
+        <div class="voice-widget-header">
+            <div class="voice-widget-title">🎤 AURA Voice</div>
+            <button class="voice-widget-close" onclick="toggleVoicePanel()">×</button>
+        </div>
+        <div class="voice-widget-messages" id="voiceWidgetMessages">
+            <div class="voice-widget-message assistant">
+                Click the dot or type to chat. I can show wallets, signals, and more.
+            </div>
+        </div>
+        <div class="voice-widget-status" id="voiceWidgetStatus"></div>
+        <div class="voice-widget-input-area">
+            <input type="text" class="voice-widget-input" id="voiceWidgetInput" placeholder="Ask anything..." onkeypress="if(event.key==='Enter')sendVoiceMessage()">
+            <button class="voice-widget-send" onclick="sendVoiceMessage()">Send</button>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <div class="header-top">
@@ -323,7 +527,7 @@
         }
 
         // Voice Input
-                let voiceTimer = null;
+        let voiceTimer = null;
         let voiceStartTime = 0;
         let audioContext = null;
         let analyser = null;
@@ -332,6 +536,9 @@
         let lastSoundTime = 0;
         const SILENCE_THRESHOLD = 20;  // Lower = more sensitive to silence
         const SILENCE_DURATION = 2500;  // Wait 2.5 seconds of silence before auto-stop
+        let browserRecognition = null;
+        let browserTranscript = null;
+        let browserRecognitionActive = false;
 
         async function toggleVoice() {
             const voiceBtn = document.getElementById('voiceBtn');
@@ -342,6 +549,8 @@
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
+
+                    startBrowserRecognition();
 
                     // Setup audio visualization
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -361,6 +570,17 @@
                         stopVisualization();
                         stopTimer();
                         stopSilenceDetection();
+                        stopBrowserRecognition();
+
+                        const transcript = browserTranscript ? browserTranscript.trim() : '';
+                        browserTranscript = null;
+
+                        if (transcript) {
+                            document.getElementById('chatInput').value = transcript;
+                            sendMessage();
+                            return;
+                        }
+
                         await transcribeAudio(audioBlob);
                     };
 
@@ -392,6 +612,7 @@
             stopVisualization();
             stopTimer();
             stopSilenceDetection();
+            stopBrowserRecognition();
             document.getElementById('voiceBtn').classList.remove('recording');
             document.getElementById('voiceRecording').classList.remove('active');
         }
@@ -486,6 +707,60 @@
             }
         }
 
+        function startBrowserRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                browserRecognition = null;
+                browserTranscript = null;
+                browserRecognitionActive = false;
+                return;
+            }
+
+            browserTranscript = null;
+            try {
+                browserRecognition = new webkitSpeechRecognition();
+                browserRecognition.continuous = false;
+                browserRecognition.interimResults = false;
+                browserRecognition.lang = 'en-US';
+
+                browserRecognition.onstart = () => {
+                    browserRecognitionActive = true;
+                };
+
+                browserRecognition.onresult = (event) => {
+                    if (event.results && event.results[0] && event.results[0][0]) {
+                        browserTranscript = event.results[0][0].transcript || '';
+                    }
+                };
+
+                browserRecognition.onerror = (event) => {
+                    console.warn('Browser speech recognition error:', event.error);
+                };
+
+                browserRecognition.onend = () => {
+                    browserRecognitionActive = false;
+                };
+
+                browserRecognition.start();
+            } catch (error) {
+                console.warn('Browser speech recognition start failed:', error);
+                browserRecognition = null;
+                browserTranscript = null;
+                browserRecognitionActive = false;
+            }
+        }
+
+        function stopBrowserRecognition() {
+            if (browserRecognition) {
+                try {
+                    browserRecognition.stop();
+                } catch (error) {
+                    console.warn('Browser speech recognition stop failed:', error);
+                }
+            }
+            browserRecognition = null;
+            browserRecognitionActive = false;
+        }
+
         async function transcribeAudio(audioBlob) {
             // Show processing message
             const voiceOverlay = document.getElementById('voiceRecording');
@@ -516,12 +791,14 @@
                     document.getElementById('chatInput').value = data.transcription;
                     sendMessage();
                 } else {
-                    addMessage('assistant', 'Could not transcribe audio. Please try again.');
+                    const friendlyError = data.error ? `⚠️ ${data.error}` : 'Could not transcribe audio. Please try again.';
+                    addMessage('assistant', friendlyError);
                 }
             } catch (error) {
                 console.error('Transcription error:', error);
                 voiceOverlay.classList.remove('active');
-                addMessage('assistant', '⚠️ Voice transcription failed. Please check your connection and try again.');
+                const errorMessage = error?.message ? `⚠️ Voice transcription failed: ${error.message}` : '⚠️ Voice transcription failed. Please check your connection and try again.';
+                addMessage('assistant', errorMessage);
             }
         }
 
@@ -550,17 +827,22 @@
         // Text-to-Speech function using ElevenLabs
         let currentAudio = null;
         let isSpeaking = false;
+        let speakQueue = [];
 
         async function speakText(text) {
-            // Don't allow multiple concurrent speeches
+            // Queue if already speaking
             if (isSpeaking) {
-                console.log('⚠️ Already speaking, queuing...');
-                if (currentAudio) {
-                    currentAudio.pause();
-                }
+                console.log('⚠️ Already speaking, adding to queue...');
+                speakQueue.push(text);
+                return;
             }
 
             isSpeaking = true;
+
+            // Add speaking indicator to status
+            const statusText = document.getElementById('statusText');
+            const originalStatus = statusText.textContent;
+            statusText.textContent = '🔊 Speaking...';
 
             try {
                 console.log('🔊 Speaking with ElevenLabs:', text.substring(0, 50) + '...');
@@ -575,7 +857,7 @@
                 console.log('📡 ElevenLabs response status:', response.status);
 
                 if (!response.ok) {
-                    const errorData = await response.json();
+                    const errorData = await response.json().catch(() => ({ error: 'Network error' }));
                     console.error('❌ ElevenLabs error:', errorData);
                     throw new Error('ElevenLabs failed: ' + (errorData.error || response.status));
                 }
@@ -593,6 +875,11 @@
                 const audioBlob = await response.blob();
                 console.log('✅ Got ElevenLabs audio:', audioBlob.size, 'bytes, type:', audioBlob.type);
 
+                // Validate audio blob
+                if (audioBlob.size === 0) {
+                    throw new Error('Empty audio response');
+                }
+
                 // Stop any current audio
                 if (currentAudio) {
                     currentAudio.pause();
@@ -607,12 +894,23 @@
                     console.log('✅ Audio playback complete');
                     URL.revokeObjectURL(audioUrl);
                     isSpeaking = false;
+                    statusText.textContent = originalStatus;
+
+                    // Process queue
+                    if (speakQueue.length > 0) {
+                        const nextText = speakQueue.shift();
+                        setTimeout(() => speakText(nextText), 100);
+                    }
                 };
 
                 currentAudio.onerror = (e) => {
                     console.error('❌ Audio playback error:', e);
                     isSpeaking = false;
+                    statusText.textContent = originalStatus;
                     URL.revokeObjectURL(audioUrl);
+
+                    // Try fallback
+                    fallbackToSpeechSynthesis(text);
                 };
 
                 // Enable audio context on first play
@@ -622,25 +920,44 @@
             } catch (error) {
                 console.error('❌ ElevenLabs error:', error);
                 isSpeaking = false;
+                statusText.textContent = originalStatus;
 
                 // Fallback to browser speech
-                if ('speechSynthesis' in window) {
-                    console.log('⚠️ Falling back to browser speech synthesis');
-                    window.speechSynthesis.cancel();
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.rate = 1.1;
-                    utterance.pitch = 1.0;
-                    utterance.volume = 1.0;
-                    utterance.onend = () => {
-                        console.log('✅ Browser speech complete');
-                        isSpeaking = false;
-                    };
-                    utterance.onerror = (e) => {
-                        console.error('❌ Browser speech error:', e);
-                        isSpeaking = false;
-                    };
-                    window.speechSynthesis.speak(utterance);
-                }
+                fallbackToSpeechSynthesis(text);
+            }
+        }
+
+        function fallbackToSpeechSynthesis(text) {
+            if ('speechSynthesis' in window) {
+                console.log('⚠️ Falling back to browser speech synthesis');
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 1.1;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+                utterance.onend = () => {
+                    console.log('✅ Browser speech complete');
+                    isSpeaking = false;
+
+                    // Process queue
+                    if (speakQueue.length > 0) {
+                        const nextText = speakQueue.shift();
+                        setTimeout(() => speakText(nextText), 100);
+                    }
+                };
+                utterance.onerror = (e) => {
+                    console.error('❌ Browser speech error:', e);
+                    isSpeaking = false;
+                };
+                window.speechSynthesis.speak(utterance);
+            } else {
+                console.error('❌ No speech synthesis available');
+                // Show user-friendly error
+                const messagesDiv = document.getElementById('messages');
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'message assistant';
+                errorDiv.innerHTML = `<div class="message-avatar">⚠️</div><div class="message-content">Voice playback unavailable. Please check your browser settings or enable microphone permissions.</div>`;
+                messagesDiv.appendChild(errorDiv);
             }
         }
 
@@ -1174,6 +1491,195 @@
 
         // Initialize
         loadSignals();
+
+        // ===== VOICE WIDGET FUNCTIONS =====
+        const voiceWidgetDot = document.getElementById('voiceWidgetDot');
+        const voiceWidgetPanel = document.getElementById('voiceWidgetPanel');
+        const voiceWidgetMessages = document.getElementById('voiceWidgetMessages');
+        const voiceWidgetStatus = document.getElementById('voiceWidgetStatus');
+        const voiceWidgetInput = document.getElementById('voiceWidgetInput');
+
+        let voiceRecognition;
+        let isVoiceListening = false;
+
+        function toggleVoicePanel() {
+            voiceWidgetPanel.classList.toggle('active');
+            if (voiceWidgetPanel.classList.contains('active')) {
+                voiceWidgetInput.focus();
+            }
+        }
+
+        // Click dot to start voice when panel is open
+        voiceWidgetDot.addEventListener('click', () => {
+            if (!voiceWidgetPanel.classList.contains('active')) {
+                toggleVoicePanel();
+            } else {
+                startVoiceRecognition();
+            }
+        });
+
+        function startVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                addVoiceMessage('assistant', 'Voice recognition not supported. Please type instead.');
+                return;
+            }
+
+            if (isVoiceListening) {
+                stopVoiceListening();
+                return;
+            }
+
+            voiceRecognition = new webkitSpeechRecognition();
+            voiceRecognition.continuous = false;
+            voiceRecognition.interimResults = false;
+
+            voiceRecognition.onstart = () => {
+                isVoiceListening = true;
+                voiceWidgetDot.classList.add('listening');
+                voiceWidgetStatus.textContent = '🎤 Listening...';
+            };
+
+            voiceRecognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                voiceWidgetInput.value = transcript;
+                sendVoiceMessage();
+            };
+
+            voiceRecognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                stopVoiceListening();
+                voiceWidgetStatus.textContent = '❌ Error: ' + event.error;
+            };
+
+            voiceRecognition.onend = () => {
+                stopVoiceListening();
+            };
+
+            voiceRecognition.start();
+        }
+
+        function stopVoiceListening() {
+            if (voiceRecognition) {
+                voiceRecognition.stop();
+            }
+            isVoiceListening = false;
+            voiceWidgetDot.classList.remove('listening');
+            voiceWidgetStatus.textContent = '';
+        }
+
+        async function sendVoiceMessage() {
+            const text = voiceWidgetInput.value.trim();
+            if (!text) return;
+
+            addVoiceMessage('user', text);
+            voiceWidgetInput.value = '';
+            voiceWidgetStatus.textContent = '🤔 Thinking...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: text })
+                });
+
+                const data = await response.json();
+                const reply = data.message || data.response || 'Done!';
+
+                addVoiceMessage('assistant', reply);
+
+                // Speak response with ElevenLabs
+                await speakVoiceText(reply);
+
+                voiceWidgetStatus.textContent = '';
+            } catch (error) {
+                console.error('Voice chat error:', error);
+                addVoiceMessage('assistant', '❌ Error connecting to AURA');
+                voiceWidgetStatus.textContent = '';
+            }
+        }
+
+        async function speakVoiceText(text) {
+            voiceWidgetDot.classList.add('speaking');
+            voiceWidgetStatus.textContent = '🔊 Speaking...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                console.log('Voice widget TTS response:', response.status);
+
+                if (response.ok && response.headers.get('content-type')?.includes('audio')) {
+                    const audioBlob = await response.blob();
+
+                    if (audioBlob.size === 0) {
+                        throw new Error('Empty audio response');
+                    }
+
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+
+                    audio.onended = () => {
+                        voiceWidgetDot.classList.remove('speaking');
+                        voiceWidgetStatus.textContent = '';
+                        URL.revokeObjectURL(audioUrl);
+                    };
+
+                    audio.onerror = (e) => {
+                        console.error('Audio playback error:', e);
+                        voiceWidgetDot.classList.remove('speaking');
+                        voiceWidgetStatus.textContent = '❌ Playback failed';
+                        URL.revokeObjectURL(audioUrl);
+
+                        // Fallback to browser speech
+                        fallbackVoiceWidgetSpeech(text);
+                    };
+
+                    await audio.play();
+                    console.log('✅ Playing voice widget audio');
+                } else {
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    console.error('Voice TTS error:', errorData);
+                    throw new Error(errorData.error || 'TTS failed');
+                }
+            } catch (error) {
+                console.error('TTS error:', error);
+                voiceWidgetStatus.textContent = '❌ Voice error';
+
+                // Fallback to browser speech
+                fallbackVoiceWidgetSpeech(text);
+            }
+        }
+
+        function fallbackVoiceWidgetSpeech(text) {
+            if ('speechSynthesis' in window) {
+                console.log('⚠️ Voice widget using browser speech');
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.onend = () => {
+                    voiceWidgetDot.classList.remove('speaking');
+                    voiceWidgetStatus.textContent = '';
+                };
+                utterance.onerror = () => {
+                    voiceWidgetDot.classList.remove('speaking');
+                    voiceWidgetStatus.textContent = '';
+                };
+                speechSynthesis.speak(utterance);
+            } else {
+                voiceWidgetDot.classList.remove('speaking');
+                voiceWidgetStatus.textContent = '';
+                addVoiceMessage('assistant', '⚠️ Voice playback unavailable');
+            }
+        }
+
+        function addVoiceMessage(role, content) {
+            const msg = document.createElement('div');
+            msg.className = `voice-widget-message ${role}`;
+            msg.textContent = content;
+            voiceWidgetMessages.appendChild(msg);
+            voiceWidgetMessages.scrollTop = voiceWidgetMessages.scrollHeight;
+        }
     </script>
 </body>
 </html>

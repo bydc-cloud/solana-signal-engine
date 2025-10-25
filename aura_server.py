@@ -3,6 +3,9 @@
 AURA Unified API Server
 Combines Helix scanner APIs with AURA autonomous intelligence system
 """
+# MUST import config FIRST to load environment variables
+from config import Config
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -13,7 +16,11 @@ import logging
 import os
 from datetime import datetime
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Print configuration status
+Config.print_status()
 
 # Import Helix existing endpoints (they're standalone functions, not a router)
 from api_server import get_status, get_alerts, get_logs
@@ -154,6 +161,12 @@ async def dashboard_aura_complete():
     """Serve the complete AURA dashboard with whale wallet tracking"""
     return FileResponse("dashboard/aura-complete.html")
 
+@app.get("/dashboard/voice-widget.html")
+@app.get("/voice-widget")
+async def voice_widget():
+    """Serve voice widget - compact blinking dot interface"""
+    return FileResponse("dashboard/voice-widget.html")
+
 # Jarvis voice interface (full-screen) - V3 FRIENDLY CHAT UI
 @app.get("/dashboard/jarvis")
 @app.get("/dashboard/aura-jarvis.html")
@@ -242,38 +255,53 @@ async def aura_voice(request: Request):
             logger.error(f"Audio file too large: {file_size} bytes")
             return {"error": "Audio file is too large (max 25MB)", "transcription": None}
 
-        # Determine file extension based on content type
-        content_type = audio_file.content_type or ""
-        if "webm" in content_type:
-            ext = ".webm"
-        elif "mp4" in content_type or "m4a" in content_type:
-            ext = ".m4a"
-        elif "wav" in content_type:
-            ext = ".wav"
-        elif "mpeg" in content_type or "mp3" in content_type:
-            ext = ".mp3"
+        # Determine file extension - use filename first, then content type
+        filename = audio_file.filename or ""
+
+        # Try to get extension from filename first
+        if filename:
+            _, file_ext = os.path.splitext(filename)
+            if file_ext in ['.wav', '.mp3', '.m4a', '.webm', '.ogg', '.flac', '.aiff', '.aif']:
+                ext = file_ext
+                logger.info(f"Using extension from filename: {ext}")
+            else:
+                # Fallback to content type detection
+                content_type = audio_file.content_type or ""
+                if "webm" in content_type:
+                    ext = ".webm"
+                elif "mp4" in content_type or "m4a" in content_type:
+                    ext = ".m4a"
+                elif "wav" in content_type:
+                    ext = ".wav"
+                elif "mpeg" in content_type or "mp3" in content_type:
+                    ext = ".mp3"
+                else:
+                    ext = ".wav"  # Default to WAV (most compatible)
+                logger.info(f"Using extension from content-type: {ext}")
         else:
-            ext = ".webm"  # Default
+            ext = ".wav"
+            logger.info(f"No filename, defaulting to: {ext}")
 
-        logger.info(f"Using file extension: {ext}")
-
-        # Save temporarily
-        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        # Save temporarily - always use .wav extension since we'll convert
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
 
         try:
-            # Transcribe with Whisper
+            # Transcribe with Whisper - send as WAV regardless of actual format
+            # Whisper will handle the decoding
             logger.info(f"Creating OpenAI client with key: {openai_key[:12]}...")
             client = OpenAI(api_key=openai_key)
             logger.info(f"Client created successfully")
-            logger.info(f"Sending to Whisper: {tmp_path} ({os.path.getsize(tmp_path)} bytes)")
+            logger.info(f"Sending to Whisper as WAV: {tmp_path} ({os.path.getsize(tmp_path)} bytes)")
 
-            with open(tmp_path, 'rb') as audio:
+            # Open with correct extension hint in filename
+            with open(tmp_path, 'rb') as audio_file:
+                # Create a tuple that looks like an uploaded file with .wav extension
                 logger.info("Calling Whisper API...")
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1",
-                    file=audio,
+                    file=audio_file,
                     language="en",  # Specify English for better accuracy
                     prompt="Show top wallets. Track wallet. Any good signals? What's raydiance? Check portfolio."  # Context hints for better transcription
                 )
@@ -316,18 +344,16 @@ async def elevenlabs_tts(request: Request):
         if not text:
             return {"error": "No text provided"}
 
-        elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
-        if not elevenlabs_key:
+        if not Config.ELEVENLABS_API_KEY:
             logger.error("ElevenLabs API key not configured")
             return {"error": "ElevenLabs not configured"}
 
         # Call ElevenLabs API
         import aiohttp
-        voice_id = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice (clear, professional)
 
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{Config.ELEVENLABS_VOICE_ID}"
         headers = {
-            "xi-api-key": elevenlabs_key,
+            "xi-api-key": Config.ELEVENLABS_API_KEY,
             "Content-Type": "application/json"
         }
         payload = {
@@ -343,6 +369,7 @@ async def elevenlabs_tts(request: Request):
             async with session.post(url, json=payload, headers=headers) as response:
                 if response.status == 200:
                     audio_bytes = await response.read()
+                    logger.info(f"✅ ElevenLabs TTS generated {len(audio_bytes)} bytes")
                     return Response(content=audio_bytes, media_type="audio/mpeg")
                 else:
                     error_text = await response.text()
@@ -359,6 +386,7 @@ async def aura_chat(request: Request):
     try:
         data = await request.json()
         query = data.get("query", "")
+        conversation_id = data.get("conversation_id")  # Optional conversation context
 
         if not query:
             return {"message": "I'm listening. What would you like to know?", "success": True}
@@ -369,21 +397,38 @@ async def aura_chat(request: Request):
             logger.error("Anthropic API key not configured")
             return {"message": "I'm having trouble accessing my AI capabilities right now.", "success": False}
 
-        # Import voice controller
+        # Import voice controller and conversation manager
         try:
             from voice_controller import voice_controller
+            from conversation_manager import conversation_manager
         except ImportError as e:
-            logger.error(f"Voice controller import error: {e}")
+            logger.error(f"Import error: {e}")
             # Fallback to basic chat
             return await _fallback_basic_chat(query)
 
+        # Create conversation if not provided
+        if not conversation_id:
+            conversation_id = conversation_manager.create_conversation()
+
+        # Add user message to history
+        conversation_manager.add_message(conversation_id, "user", query)
+
         # Process command with full tool support
         result = await voice_controller.process_command(query)
+
+        # Add assistant response to history
+        conversation_manager.add_message(
+            conversation_id,
+            "assistant",
+            result.get("response", "Done!"),
+            tool_calls=result.get("tool_results", [])
+        )
 
         return {
             "message": result.get("response", "Done!"),
             "response": result.get("response", "Done!"),
             "tool_results": result.get("tool_results", []),
+            "conversation_id": conversation_id,
             "success": result.get("success", True)
         }
 
@@ -1429,16 +1474,81 @@ Respond naturally and helpfully. Keep responses concise (2-4 sentences) formatte
         logger.error(f"Webhook error: {e}")
         return {"ok": False}
 
+# ═══════════════════════════════════════════════════════════
+# CONVERSATION MANAGEMENT API
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/aura/conversations")
+async def list_conversations():
+    """Get list of all conversations"""
+    try:
+        from conversation_manager import conversation_manager
+        conversations = conversation_manager.list_conversations()
+        return {"conversations": conversations, "count": len(conversations)}
+    except Exception as e:
+        logger.error(f"List conversations error: {e}")
+        return {"error": str(e), "conversations": []}
+
+@app.post("/api/aura/conversations")
+async def create_conversation(request: Request):
+    """Create a new conversation"""
+    try:
+        from conversation_manager import conversation_manager
+        data = await request.json()
+        title = data.get("title")
+        conversation_id = conversation_manager.create_conversation(title)
+        return {"conversation_id": conversation_id, "success": True}
+    except Exception as e:
+        logger.error(f"Create conversation error: {e}")
+        return {"error": str(e), "success": False}
+
+@app.get("/api/aura/conversations/{conversation_id}")
+async def get_conversation(conversation_id: str):
+    """Get conversation history"""
+    try:
+        from conversation_manager import conversation_manager
+        messages = conversation_manager.get_conversation_history(conversation_id)
+        return {"conversation_id": conversation_id, "messages": messages, "count": len(messages)}
+    except Exception as e:
+        logger.error(f"Get conversation error: {e}")
+        return {"error": str(e), "messages": []}
+
+@app.put("/api/aura/conversations/{conversation_id}")
+async def update_conversation(conversation_id: str, request: Request):
+    """Update conversation title"""
+    try:
+        from conversation_manager import conversation_manager
+        data = await request.json()
+        title = data.get("title")
+        if title:
+            conversation_manager.update_conversation_title(conversation_id, title)
+            return {"success": True}
+        return {"error": "No title provided", "success": False}
+    except Exception as e:
+        logger.error(f"Update conversation error: {e}")
+        return {"error": str(e), "success": False}
+
+@app.delete("/api/aura/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: str):
+    """Delete a conversation"""
+    try:
+        from conversation_manager import conversation_manager
+        conversation_manager.delete_conversation(conversation_id)
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Delete conversation error: {e}")
+        return {"error": str(e), "success": False}
+
 # Root endpoint
 @app.get("/")
 async def root():
     """API information"""
     return {
         "name": "AURA - Autonomous Crypto Intelligence",
-        "version": "0.3.0",
+        "version": "0.3.1",
         "endpoints": {
             "helix_legacy": ["/status", "/alerts", "/logs"],
-            "aura": ["/api/portfolio", "/api/watchlist", "/api/tokens", "/api/strategies", "/api/alerts", "/api/config"],
+            "aura": ["/api/portfolio", "/api/watchlist", "/api/tokens", "/api/strategies", "/api/alerts", "/api/config", "/api/conversations"],
             "health": ["/health"],
             "websocket": ["/ws"],
             "dashboard": ["/dashboard"],
