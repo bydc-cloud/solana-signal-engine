@@ -6,6 +6,14 @@ set -e  # Exit on error
 
 echo "🚀 Starting AURA v0.3.0..."
 
+# Step 0: Clean up any stale local processes to avoid port conflicts or duplicate scanners
+echo "🧹 Cleaning up existing processes..."
+pkill -f "uvicorn aura_server:app" 2>/dev/null || true
+pkill -f "REALITY_MOMENTUM_SCANNER.py" 2>/dev/null || true
+pkill -f "aura_worker.py" 2>/dev/null || true
+pkill -f "ingestion_worker.py" 2>/dev/null || true
+sleep 1
+
 # Step 1: Initialize databases
 echo "📊 Initializing databases..."
 python3 init_db.py || echo "⚠️  init_db.py failed (might already exist)"

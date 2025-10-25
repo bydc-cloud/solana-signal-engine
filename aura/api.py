@@ -565,9 +565,9 @@ async def get_stats():
 class ChatQuery(BaseModel):
     query: str
 
-@router.post("/chat")
-async def chat_query(chat: ChatQuery):
-    """Natural language query interface with MCP intelligence"""
+@router.post("/chat-legacy")
+async def chat_query_legacy(chat: ChatQuery):
+    """Legacy natural language query interface (deprecated - use main /api/aura/chat endpoint)"""
     try:
         # Try MCP chat first (Claude with tools)
         try:

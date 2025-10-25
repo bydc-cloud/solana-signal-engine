@@ -41,6 +41,9 @@ SCAN_STRATEGIES = [
     ("Micro Caps", {'sort_by': 'mc', 'sort_type': 'asc', 'limit': 50}),
 ]
 
+DEXSCREENER_URL = "https://api.dexscreener.com/latest/dex/pairs/solana"
+DEXSCREENER_CACHE_TTL = 60  # seconds
+
 # Scanner tuning - QUALITY OVER QUANTITY for paper trading
 DEFAULT_SIGNAL_THRESHOLD = 30  # Moderate bar for quality signals
 DEFAULT_DUPLICATE_COOLDOWN_MINUTES = 10080  # 7 days (7 * 24 * 60) to prevent spam
@@ -136,6 +139,7 @@ class RealityMomentumScanner:
         self.telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.telegram_chat = os.getenv('TELEGRAM_CHAT_ID')
         self.watchlist_chat = os.getenv('TELEGRAM_WATCHLIST_CHAT_ID') or self.telegram_chat
+        self.birdeye_enabled = bool(self.birdeye_key)
 
         # Risk management / adaptive tuning
         self.sent_signals = {}  # address -> datetime of last alert
@@ -171,6 +175,10 @@ class RealityMomentumScanner:
             'avg_cycle_seconds': 0.0,
             'last_cycle_seconds': 0.0,
         }
+        self._dexscreener_cache = {
+            'fetched_at': None,
+            'pairs': []
+        }
 
         print("""
 ╔══════════════════════════════════════════════════════════════╗
@@ -186,15 +194,15 @@ class RealityMomentumScanner:
         """)
 
     def fetch_tokens_from_birdeye(self, strategy_name: str, params: dict, retries: int = 2) -> list:
-        """Query Birdeye with retries and verbose logging on failure"""
-        if not self.birdeye_key:
-            logger.error("No Birdeye API key available")
-            return []
+        """Query Birdeye with retries. Falls back to DexScreener when unavailable."""
+        if not self.birdeye_enabled:
+            return self.fetch_tokens_from_dexscreener(strategy_name, params.get('limit', 50))
 
         url = "https://public-api.birdeye.so/defi/tokenlist"
         headers = {
             'X-API-KEY': self.birdeye_key,
             'x-chain': 'solana',
+            'accept': 'application/json',
         }
         query = dict(params)
         query.setdefault('chain', 'solana')
@@ -212,6 +220,10 @@ class RealityMomentumScanner:
                         response.status_code,
                         body_preview,
                     )
+                    if response.status_code in (401, 403):
+                        logger.error("Birdeye authentication failed. Disabling Birdeye integration.")
+                        self.birdeye_enabled = False
+                        break
                 else:
                     try:
                         payload = response.json()
@@ -225,18 +237,148 @@ class RealityMomentumScanner:
                         for token in tokens:
                             token['discovery_strategy'] = strategy_name
                             token['scan_time'] = now_iso
+                            token.setdefault('source', 'birdeye')
                         logger.info(f"Retrieved {len(tokens)} tokens from {strategy_name}")
                         return tokens
 
             except requests.RequestException as request_error:
                 logger.error(f"{strategy_name} request error: {request_error}")
+                if attempt == retries:
+                    self.birdeye_enabled = False
+                    break
 
             sleep_time = 1.5 * (attempt + 1)
             logger.debug(f"Retrying {strategy_name} in {sleep_time:.1f}s")
             time.sleep(sleep_time)
 
-        logger.error(f"{strategy_name} failed after {retries + 1} attempts")
-        return []
+        if self.birdeye_enabled:
+            logger.error(f"{strategy_name} failed after {retries + 1} attempts")
+            self.birdeye_enabled = False
+
+        return self.fetch_tokens_from_dexscreener(strategy_name, params.get('limit', 50))
+
+    def fetch_tokens_from_dexscreener(self, strategy_name: str, limit: int = 50) -> list:
+        """Fallback discovery using DexScreener public API when Birdeye is unavailable."""
+        now = time.time()
+        cache = self._dexscreener_cache
+        if cache['pairs'] and cache['fetched_at'] and (now - cache['fetched_at']) < DEXSCREENER_CACHE_TTL:
+            pairs = cache['pairs']
+        else:
+            try:
+                resp = requests.get(DEXSCREENER_URL, timeout=10)
+                if resp.status_code != 200:
+                    logger.error("DexScreener HTTP %s for %s", resp.status_code, strategy_name)
+                    return []
+                payload = resp.json() or {}
+                pairs = payload.get('pairs') or []
+                cache['pairs'] = pairs
+                cache['fetched_at'] = now
+                logger.info("DexScreener fallback loaded %d pairs", len(pairs))
+            except requests.RequestException as exc:
+                logger.error("DexScreener fetch error for %s: %s", strategy_name, exc)
+                return []
+
+        if not pairs:
+            return []
+
+        def safe_float(value, default=0.0):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        def safe_int(value, default=0):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        strategy_lower = strategy_name.lower()
+        reverse = True
+
+        def sort_key(pair):
+            volume = pair.get('volume') or {}
+            liquidity = pair.get('liquidity') or {}
+            price_change = pair.get('priceChange') or {}
+            fdv = pair.get('fdv')
+
+            if "volume" in strategy_lower:
+                return safe_float(volume.get('h24'))
+            if "gainer" in strategy_lower:
+                return safe_float(price_change.get('h24'))
+            if "liquidity" in strategy_lower:
+                return safe_float(liquidity.get('usd'))
+            if "micro" in strategy_lower:
+                return safe_float(fdv, default=0.0) or safe_float(volume.get('h24'))
+            return safe_float(volume.get('h24'))
+
+        if "micro" in strategy_lower:
+            reverse = False
+
+        sorted_pairs = sorted(pairs, key=sort_key, reverse=reverse)[:limit]
+        tokens = []
+
+        for pair in sorted_pairs:
+            base = pair.get('baseToken') or {}
+            address = base.get('address')
+            if not address:
+                continue
+
+            symbol = base.get('symbol') or base.get('name') or 'UNKNOWN'
+            name = base.get('name') or symbol
+            txns = pair.get('txns') or {}
+            tx_1h = txns.get('h1') or {}
+            tx_5m = txns.get('m5') or {}
+            tx_24h = txns.get('h24') or {}
+            volume = pair.get('volume') or {}
+            price_change = pair.get('priceChange') or {}
+            liquidity = pair.get('liquidity') or {}
+
+            total_tx_1h = safe_int(tx_1h.get('buys')) + safe_int(tx_1h.get('sells'))
+            buyer_ratio = (safe_int(tx_1h.get('buys')) / total_tx_1h) if total_tx_1h else 0
+            estimated_buy_volume = safe_float(volume.get('h1')) * buyer_ratio
+
+            created_at = pair.get('pairCreatedAt')
+            if created_at:
+                try:
+                    created_iso = datetime.fromtimestamp(int(created_at) / 1000).isoformat()
+                except Exception:
+                    created_iso = None
+            else:
+                created_iso = None
+
+            token = {
+                'address': address,
+                'symbol': symbol,
+                'name': name,
+                'price': safe_float(pair.get('priceUsd')),
+                'mc': safe_float(pair.get('fdv')),
+                'liquidity': safe_float(liquidity.get('usd')),
+                'v24hUSD': safe_float(volume.get('h24')),
+                'v1hUSD': safe_float(volume.get('h1')),
+                'vBuy1hUSD': estimated_buy_volume,
+                'buy24h': safe_int(tx_24h.get('buys')),
+                'buy1h': safe_int(tx_1h.get('buys')),
+                'trade1h': total_tx_1h,
+                'buy5m': safe_int(tx_5m.get('buys')),
+                'trade5m': safe_int(tx_5m.get('buys')) + safe_int(tx_5m.get('sells')),
+                'v24hChangePercent': safe_float(price_change.get('h24')),
+                'price_change_1h': safe_float(price_change.get('h1')),
+                'price_change_5m': safe_float(price_change.get('m5')),
+                'discovery_strategy': strategy_name,
+                'holders': None,
+                'overview': {},
+                'source': 'dexscreener',
+                'pair_address': pair.get('pairAddress'),
+                'dex_id': pair.get('dexId'),
+                'created_at': created_iso,
+                'scan_time': datetime.now().isoformat(),
+            }
+
+            tokens.append(token)
+
+        logger.info("Using DexScreener fallback for %s (%d tokens)", strategy_name, len(tokens))
+        return tokens
 
     def fetch_additional_microcaps(self, target_count: int = 60) -> list:
         """Sweep low market cap pages to backfill the 10-30k band"""
@@ -460,7 +602,7 @@ class RealityMomentumScanner:
 
     async def enrich_token_metrics(self, tokens: list) -> list:
         """Fetch Birdeye overview data to evaluate buyer momentum and holders"""
-        if not tokens or not self.birdeye_key:
+        if not tokens or not self.birdeye_enabled:
             return tokens
 
         url = "https://public-api.birdeye.so/defi/token_overview"

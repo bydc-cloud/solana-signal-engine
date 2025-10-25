@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA Voice Widget</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #000;
+            min-height: 100vh;
+        }
+
+        /* Voice Dot Widget */
+        .voice-widget {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 10000;
+        }
+
+        .voice-dot {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.4);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .voice-dot:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 30px rgba(0, 255, 136, 0.6);
+        }
+
+        /* Blinking animation */
+        .voice-dot::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: inherit;
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.95); }
+        }
+
+        /* Active/listening state */
+        .voice-dot.listening {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 4px 20px rgba(0, 255, 136, 0.4); }
+            50% { transform: scale(1.15); box-shadow: 0 8px 40px rgba(0, 255, 136, 0.8); }
+        }
+
+        /* Speaking state */
+        .voice-dot.speaking {
+            animation: speak 0.6s ease-in-out infinite;
+        }
+
+        @keyframes speak {
+            0%, 100% { transform: scale(1); }
+            25% { transform: scale(1.08); }
+            75% { transform: scale(1.12); }
+        }
+
+        /* Microphone icon */
+        .voice-icon {
+            width: 24px;
+            height: 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Popup panel */
+        .voice-panel {
+            position: fixed;
+            bottom: 90px;
+            right: 24px;
+            width: 400px;
+            max-height: 500px;
+            background: #0a0a0a;
+            border: 1px solid #00ff88;
+            border-radius: 16px;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 9999;
+        }
+
+        .voice-panel.active {
+            display: flex;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .panel-header {
+            padding: 16px;
+            border-bottom: 1px solid #1a1a1a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #00ff88;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+        }
+
+        .close-btn:hover { color: #fff; }
+
+        .panel-content {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .message.user {
+            background: #1a1a1a;
+            color: #fff;
+            margin-left: 40px;
+        }
+
+        .message.assistant {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            margin-right: 40px;
+        }
+
+        .input-area {
+            padding: 16px;
+            border-top: 1px solid #1a1a1a;
+            display: flex;
+            gap: 8px;
+        }
+
+        .voice-input {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .voice-input:focus {
+            outline: none;
+            border-color: #00ff88;
+        }
+
+        .send-btn {
+            background: #00ff88;
+            border: none;
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .send-btn:hover {
+            background: #00d4ff;
+        }
+
+        /* Status indicator */
+        .status {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            padding: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Voice Widget -->
+    <div class="voice-widget">
+        <div class="voice-dot" id="voiceDot" onclick="togglePanel()">
+            <svg class="voice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Voice Panel -->
+    <div class="voice-panel" id="voicePanel">
+        <div class="panel-header">
+            <div class="panel-title">🎤 AURA Voice</div>
+            <button class="close-btn" onclick="togglePanel()">×</button>
+        </div>
+        <div class="panel-content" id="messages">
+            <div class="message assistant">
+                Hey! Click the dot or type to chat. I can show wallets, signals, and more.
+            </div>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="input-area">
+            <input type="text" class="voice-input" id="textInput" placeholder="Ask anything..." onkeypress="if(event.key==='Enter')sendMessage()">
+            <button class="send-btn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8001';
+        const dot = document.getElementById('voiceDot');
+        const panel = document.getElementById('voicePanel');
+        const messages = document.getElementById('messages');
+        const status = document.getElementById('status');
+        const textInput = document.getElementById('textInput');
+
+        let recognition;
+        let isListening = false;
+
+        function togglePanel() {
+            panel.classList.toggle('active');
+            if (panel.classList.contains('active')) {
+                textInput.focus();
+            }
+        }
+
+        // Click dot to start voice
+        dot.addEventListener('click', () => {
+            if (!panel.classList.contains('active')) {
+                togglePanel();
+            } else {
+                startVoiceRecognition();
+            }
+        });
+
+        function startVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                addMessage('assistant', 'Voice recognition not supported. Please type instead.');
+                return;
+            }
+
+            if (isListening) {
+                stopListening();
+                return;
+            }
+
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                isListening = true;
+                dot.classList.add('listening');
+                status.textContent = '🎤 Listening...';
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                textInput.value = transcript;
+                sendMessage();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                stopListening();
+                status.textContent = '❌ Error: ' + event.error;
+            };
+
+            recognition.onend = () => {
+                stopListening();
+            };
+
+            recognition.start();
+        }
+
+        function stopListening() {
+            if (recognition) {
+                recognition.stop();
+            }
+            isListening = false;
+            dot.classList.remove('listening');
+            status.textContent = '';
+        }
+
+        async function sendMessage() {
+            const text = textInput.value.trim();
+            if (!text) return;
+
+            addMessage('user', text);
+            textInput.value = '';
+            status.textContent = '🤔 Thinking...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: text })
+                });
+
+                const data = await response.json();
+                const reply = data.message || data.response || 'Done!';
+
+                addMessage('assistant', reply);
+
+                // Speak response
+                await speakText(reply);
+
+                status.textContent = '';
+            } catch (error) {
+                console.error('Chat error:', error);
+                addMessage('assistant', '❌ Error connecting to AURA');
+                status.textContent = '';
+            }
+        }
+
+        async function speakText(text) {
+            dot.classList.add('speaking');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (response.ok && response.headers.get('content-type').includes('audio')) {
+                    const audioBlob = await response.blob();
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+
+                    audio.onended = () => {
+                        dot.classList.remove('speaking');
+                        URL.revokeObjectURL(audioUrl);
+                    };
+
+                    await audio.play();
+                } else {
+                    // Fallback to browser speech
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.onend = () => dot.classList.remove('speaking');
+                        speechSynthesis.speak(utterance);
+                    } else {
+                        dot.classList.remove('speaking');
+                    }
+                }
+            } catch (error) {
+                console.error('TTS error:', error);
+                dot.classList.remove('speaking');
+            }
+        }
+
+        function addMessage(role, content) {
+            const msg = document.createElement('div');
+            msg.className = `message ${role}`;
+            msg.textContent = content;
+            messages.appendChild(msg);
+            messages.scrollTop = messages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
