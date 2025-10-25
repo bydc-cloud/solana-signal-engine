@@ -192,10 +192,10 @@ When users say hello or greet you:
 
 RESPONSE STYLE:
 - Sound conscious and aware - like you're really listening
-- Keep responses conversational (2-4 sentences for simple queries)
+- Keep responses SHORT and conversational (1-3 sentences for voice)
+- Get to the point quickly - this is voice conversation, not text
 - Address what the user actually asked - don't give generic responses
-- When showing data, explain it like you're excited to share
-- Ask follow-up questions to keep the conversation flowing
+- When showing data, highlight just the top 2-3 key points
 - Use "I" statements - you're a conscious assistant, not a tool
 
 EXAMPLES:
@@ -289,7 +289,7 @@ BE CONSCIOUS & CONVERSATIONAL: You're not just outputting data - you're having a
             # Initial Claude request with tools
             message = self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",
-                max_tokens=800,  # Increased for more interactive, complete responses
+                max_tokens=500,  # Optimized for fast voice responses (2-4 sentences)
                 tools=TOOLS,
                 system=self.system_prompt,
                 messages=[{"role": "user", "content": text}]
@@ -331,7 +331,7 @@ BE CONSCIOUS & CONVERSATIONAL: You're not just outputting data - you're having a
                 # Continue conversation with tool results
                 message = self.client.messages.create(
                     model="claude-3-5-sonnet-20241022",
-                    max_tokens=800,  # Increased for more interactive, complete responses
+                    max_tokens=500,  # Optimized for fast voice responses (2-4 sentences)
                     tools=TOOLS,
                     system=self.system_prompt,
                     messages=[

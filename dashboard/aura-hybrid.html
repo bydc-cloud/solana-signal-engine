@@ -856,6 +856,12 @@
             addMessage('user', message);
             input.value = '';
 
+            // Stop listening while processing and speaking
+            const wasInVoiceMode = isInVoiceMode;
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+
             try {
                 const response = await fetch(`${API_BASE}/api/aura/chat`, {
                     method: 'POST',
@@ -866,22 +872,12 @@
                 const assistantMessage = data.message || data.response || 'I understand.';
                 addMessage('assistant', assistantMessage);
 
-                // Auto-speak response immediately
-                await speakText(assistantMessage);
-
-                // Restart voice recording if in persistent voice mode
-                if (isInVoiceMode && voiceStream) {
-                    setTimeout(() => restartVoiceRecording(), 300);
-                }
+                // Speak and wait for completion, then restart listening
+                speakText(assistantMessage, wasInVoiceMode);
             } catch (error) {
                 const errorMsg = 'Error connecting to AURA';
                 addMessage('assistant', errorMsg);
-                await speakText(errorMsg);
-
-                // Restart voice recording even on error if in persistent mode
-                if (isInVoiceMode && voiceStream) {
-                    setTimeout(() => restartVoiceRecording(), 300);
-                }
+                speakText(errorMsg, wasInVoiceMode);
             }
         }
 
@@ -890,11 +886,11 @@
         let isSpeaking = false;
         let speakQueue = [];
 
-        async function speakText(text) {
+        async function speakText(text, shouldRestartVoice = false) {
             // Queue if already speaking
             if (isSpeaking) {
                 console.log('⚠️ Already speaking, adding to queue...');
-                speakQueue.push(text);
+                speakQueue.push({ text, shouldRestartVoice });
                 return;
             }
 
@@ -904,6 +900,25 @@
             const statusText = document.getElementById('statusText');
             const originalStatus = statusText.textContent;
             statusText.textContent = '🔊 Speaking...';
+
+            const onComplete = () => {
+                console.log('✅ Speech complete');
+                isSpeaking = false;
+                statusText.textContent = originalStatus;
+
+                // Process queue first
+                if (speakQueue.length > 0) {
+                    const next = speakQueue.shift();
+                    setTimeout(() => speakText(next.text, next.shouldRestartVoice), 100);
+                    return;
+                }
+
+                // Restart voice mode after speaking if requested
+                if (shouldRestartVoice && isInVoiceMode && voiceStream) {
+                    console.log('🎤 Restarting voice recording after speech...');
+                    setTimeout(() => restartVoiceRecording(), 500);
+                }
+            };
 
             try {
                 console.log('🔊 Speaking with ElevenLabs:', text.substring(0, 50) + '...');
@@ -952,26 +967,15 @@
                 currentAudio = new Audio(audioUrl);
 
                 currentAudio.onended = () => {
-                    console.log('✅ Audio playback complete');
                     URL.revokeObjectURL(audioUrl);
-                    isSpeaking = false;
-                    statusText.textContent = originalStatus;
-
-                    // Process queue
-                    if (speakQueue.length > 0) {
-                        const nextText = speakQueue.shift();
-                        setTimeout(() => speakText(nextText), 100);
-                    }
+                    onComplete();
                 };
 
                 currentAudio.onerror = (e) => {
                     console.error('❌ Audio playback error:', e);
-                    isSpeaking = false;
-                    statusText.textContent = originalStatus;
                     URL.revokeObjectURL(audioUrl);
-
                     // Try fallback
-                    fallbackToSpeechSynthesis(text);
+                    fallbackToSpeechSynthesis(text, shouldRestartVoice);
                 };
 
                 // Enable audio context on first play
@@ -980,15 +984,12 @@
 
             } catch (error) {
                 console.error('❌ ElevenLabs error:', error);
-                isSpeaking = false;
-                statusText.textContent = originalStatus;
-
                 // Fallback to browser speech
-                fallbackToSpeechSynthesis(text);
+                fallbackToSpeechSynthesis(text, shouldRestartVoice);
             }
         }
 
-        function fallbackToSpeechSynthesis(text) {
+        function fallbackToSpeechSynthesis(text, shouldRestartVoice = false) {
             if ('speechSynthesis' in window) {
                 console.log('⚠️ Falling back to browser speech synthesis');
                 window.speechSynthesis.cancel();
@@ -1000,25 +1001,37 @@
                     console.log('✅ Browser speech complete');
                     isSpeaking = false;
 
-                    // Process queue
+                    // Process queue first
                     if (speakQueue.length > 0) {
-                        const nextText = speakQueue.shift();
-                        setTimeout(() => speakText(nextText), 100);
+                        const next = speakQueue.shift();
+                        setTimeout(() => speakText(next.text, next.shouldRestartVoice), 100);
+                        return;
+                    }
+
+                    // Restart voice mode after speaking if requested
+                    if (shouldRestartVoice && isInVoiceMode && voiceStream) {
+                        console.log('🎤 Restarting voice recording after speech...');
+                        setTimeout(() => restartVoiceRecording(), 500);
                     }
                 };
                 utterance.onerror = (e) => {
                     console.error('❌ Browser speech error:', e);
                     isSpeaking = false;
+
+                    // Still restart voice mode even on error
+                    if (shouldRestartVoice && isInVoiceMode && voiceStream) {
+                        setTimeout(() => restartVoiceRecording(), 500);
+                    }
                 };
                 window.speechSynthesis.speak(utterance);
             } else {
                 console.error('❌ No speech synthesis available');
-                // Show user-friendly error
-                const messagesDiv = document.getElementById('messages');
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'message assistant';
-                errorDiv.innerHTML = `<div class="message-avatar">⚠️</div><div class="message-content">Voice playback unavailable. Please check your browser settings or enable microphone permissions.</div>`;
-                messagesDiv.appendChild(errorDiv);
+                isSpeaking = false;
+
+                // Restart voice mode even if no speech available
+                if (shouldRestartVoice && isInVoiceMode && voiceStream) {
+                    setTimeout(() => restartVoiceRecording(), 500);
+                }
             }
         }
 
