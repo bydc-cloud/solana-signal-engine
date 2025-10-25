@@ -168,6 +168,13 @@ async def dashboard_conversations():
     """Serve the new multi-conversation dashboard with learning"""
     return FileResponse("dashboard/aura-conversations.html")
 
+# AURA Hybrid Dashboard - CONVERSATIONS + ALL TABS
+@app.get("/dashboard/hybrid")
+@app.get("/dashboard/aura-hybrid.html")
+async def dashboard_hybrid():
+    """Serve the hybrid dashboard with conversation sidebar AND all data tabs"""
+    return FileResponse("dashboard/aura-hybrid.html")
+
 @app.get("/dashboard/voice-widget.html")
 @app.get("/voice-widget")
 async def voice_widget():
