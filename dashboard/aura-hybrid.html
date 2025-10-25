@@ -1919,53 +1919,6 @@
         }
     </script>
 
-        function restartVoiceRecording() {
-            if (!isInVoiceMode || !voiceStream) return;
-            try {
-                mediaRecorder = new MediaRecorder(voiceStream);
-                audioChunks = [];
-                mediaRecorder.ondataavailable = (event) => { audioChunks.push(event.data); };
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-                    const transcript = browserTranscript ? browserTranscript.trim() : "";
-                    browserTranscript = null;
-                    if (transcript) {
-                        document.getElementById("chatInput").value = transcript;
-                        await sendMessage();
-                        if (isInVoiceMode && voiceStream) setTimeout(() => restartVoiceRecording(), 1000);
-                        return;
-                    }
-                    await transcribeAudio(audioBlob);
-                    if (isInVoiceMode && voiceStream) setTimeout(() => restartVoiceRecording(), 1000);
-                };
-                startBrowserRecognition();
-                mediaRecorder.start();
-                if (!audioContext || audioContext.state === "closed") {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    analyser = audioContext.createAnalyser();
-                    const source = audioContext.createMediaStreamSource(voiceStream);
-                    source.connect(analyser);
-                    analyser.fftSize = 256;
-                }
-                document.getElementById("voiceBtn").classList.add("recording");
-                document.getElementById("voiceRecording").classList.add("active");
-                startVisualization(); startTimer(); startSilenceDetection();
-                document.querySelector(".voice-text").textContent = "VOICE MODE ACTIVE";
-                document.querySelector(".voice-subtext").textContent = "Click Cancel to exit";
-            } catch (error) { console.error("Failed to restart:", error); exitVoiceMode(); }
-        }
-
-        function exitVoiceMode() {
-            isInVoiceMode = false;
-            if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-            if (voiceStream) { voiceStream.getTracks().forEach(track => track.stop()); voiceStream = null; }
-            if (audioContext) { audioContext.close(); audioContext = null; }
-            stopVisualization(); stopTimer(); stopSilenceDetection(); stopBrowserRecognition();
-            document.getElementById("voiceBtn").classList.remove("recording");
-            document.getElementById("voiceRecording").classList.remove("active");
-            document.querySelector(".voice-text").textContent = "LISTENING";
-            document.querySelector(".voice-subtext").textContent = "Speak naturally...";
-        }
-    </script>
+    </div> <!-- Close app-wrapper -->
 </body>
 </html>
