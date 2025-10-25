@@ -1,0 +1,1854 @@
+    </div> <!-- Close app-wrapper -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA - Autonomous Trading Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #000; color: #fff; height: 100vh; overflow: hidden; }
+
+        /* Main Layout with Sidebar */
+        .app-wrapper { display: flex; height: 100vh; }
+        .conversation-sidebar { width: 280px; background: #0a0a0a; border-right: 1px solid #1a1a1a; display: flex; flex-direction: column; overflow: hidden; }
+        .sidebar-header { padding: 1rem; border-bottom: 1px solid #1a1a1a; }
+        .sidebar-title { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem; }
+        .new-conversation-btn { width: 100%; padding: 0.75rem; background: #00ff88; color: #000; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+        .new-conversation-btn:hover { background: #00d4ff; transform: translateY(-1px); }
+        .conversations-list { flex: 1; overflow-y: auto; padding: 0.5rem; }
+        .conversation-item { padding: 0.75rem; margin-bottom: 0.5rem; background: #0f0f0f; border: 1px solid #1a1a1a; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .conversation-item:hover { border-color: #00ff88; background: #151515; }
+        .conversation-item.active { background: #151515; border-color: #00ff88; }
+        .conversation-title { font-size: 13px; font-weight: 600; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .conversation-meta { font-size: 11px; color: #666; }
+        .conversation-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+        .conversation-action { padding: 0.25rem 0.5rem; background: transparent; border: 1px solid #2a2a2a; color: #666; font-size: 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+        .conversation-action:hover { border-color: #00ff88; color: #00ff88; }
+        .sidebar-empty { text-align: center; padding: 2rem 1rem; color: #666; font-size: 12px; }
+
+        .container { height: 100vh; display: flex; flex-direction: column; flex: 1; }
+        .header { background: #0a0a0a; border-bottom: 1px solid #1a1a1a; padding: 0 2rem; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; }
+        .logo { font-size: 18px; font-weight: 700; color: #fff; }
+        .status { display: flex; gap: 0.5rem; align-items: center; font-size: 13px; color: #666; }
+        .status-dot { width: 6px; height: 6px; background: #00ff88; border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .tabs { display: flex; gap: 0; }
+        .tab { padding: 1rem 1.5rem; background: transparent; border: none; color: #666; cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .tab:hover { color: #fff; }
+        .tab.active { color: #00ff88; border-bottom-color: #00ff88; }
+        .content { flex: 1; overflow: hidden; position: relative; }
+        .tab-content { display: none; height: 100%; overflow-y: auto; padding: 2rem; }
+        .tab-content.active { display: block; }
+        
+        /* Chat */
+        .chat-container { height: 100%; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; }
+        .messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1.5rem; padding: 1rem 0; }
+        .message { display: flex; gap: 1rem; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .message-avatar { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; background: #1a1a1a; color: #666; font-weight: 600; }
+        .message.user .message-avatar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; }
+        .message.assistant .message-avatar { background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%); color: #000; }
+        .message-content { flex: 1; font-size: 15px; line-height: 1.7; color: #e0e0e0; }
+        
+        /* Voice Recording */
+        .voice-recording { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.98); padding: 4rem 3rem; border-radius: 24px; border: 2px solid #00ff88; box-shadow: 0 0 60px rgba(0, 255, 136, 0.3); display: none; z-index: 1000; text-align: center; backdrop-filter: blur(10px); }
+        .voice-recording.active { display: block; animation: voicePopIn 0.3s ease-out; }
+        @keyframes voicePopIn { from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+
+        .voice-orb { width: 180px; height: 180px; margin: 0 auto 2rem; border-radius: 50%; background: radial-gradient(circle, rgba(0, 255, 136, 0.4), transparent 70%); position: relative; display: flex; align-items: center; justify-content: center; }
+
+        .voice-icon-container { width: 80px; height: 80px; background: #00ff88; border-radius: 50%; display: flex; align-items: center; justify-content: center; animation: iconPulse 1.5s ease-in-out infinite; z-index: 2; }
+        @keyframes iconPulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(0, 255, 136, 0.5); } 50% { transform: scale(1.1); box-shadow: 0 0 40px rgba(0, 255, 136, 0.8); } }
+
+        .voice-ring { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; border-radius: 50%; border: 3px solid #00ff88; animation: ringExpand 2s ease-out infinite; }
+        @keyframes ringExpand { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; } }
+
+        .voice-bars { position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; align-items: flex-end; height: 30px; }
+        .voice-bar { width: 4px; background: #00ff88; border-radius: 2px; transition: height 0.1s ease; }
+
+        .voice-text { color: #00ff88; font-size: 18px; font-weight: 600; margin-bottom: 0.5rem; }
+        .voice-subtext { color: #666; font-size: 14px; }
+        .voice-timer { font-family: 'JetBrains Mono', monospace; color: #00ff88; font-size: 20px; margin-top: 1rem; }
+        .voice-cancel { margin-top: 1.5rem; padding: 0.75rem 2rem; background: transparent; border: 1px solid #ff4444; color: #ff4444; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
+        .voice-cancel:hover { background: rgba(255, 68, 68, 0.1); }
+        
+        .chat-input-area { padding: 1.5rem 0; border-top: 1px solid #1a1a1a; display: flex; gap: 0.75rem; }
+        .chat-input { flex: 1; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 12px; padding: 1rem; color: #fff; font-size: 15px; font-family: inherit; resize: none; max-height: 150px; }
+        .chat-input:focus { outline: none; border-color: #00ff88; }
+        
+        .voice-btn, .send-btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+        .voice-btn { background: #1a1a1a; color: #00ff88; border: 1px solid #00ff88; width: 48px; height: 48px; padding: 0; }
+        .voice-btn:hover { background: rgba(0, 255, 136, 0.1); transform: translateY(-2px); }
+        .voice-btn.recording { background: #ff4444; color: #fff; border-color: #ff4444; animation: recordPulse 1s ease-in-out infinite; }
+        @keyframes recordPulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7); } 50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(255, 68, 68, 0); } }
+        .voice-btn svg { width: 20px; height: 20px; }
+        .voice-btn.recording svg { animation: shake 0.5s ease-in-out infinite; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+        .send-btn { background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%); color: #000; }
+        .send-btn:hover { transform: translateY(-1px); }
+        
+        /* Stats & Cards - Same as before */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { background: linear-gradient(135deg, #0a0a0a 0%, #050505 100%); border: 1px solid #1a1a1a; border-radius: 16px; padding: 1.5rem; }
+        .stat-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+        .stat-value { font-size: 32px; font-weight: 700; font-family: 'JetBrains Mono', monospace; margin-bottom: 0.5rem; }
+        .stat-subtext { font-size: 14px; color: #999; }
+        .positive { color: #00ff88; }
+        .negative { color: #ff4444; }
+        .live-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .live-title { font-size: 14px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.1em; }
+        .live-indicator { display: flex; align-items: center; gap: 0.5rem; font-size: 13px; color: #00ff88; }
+        .live-dot { width: 8px; height: 8px; background: #00ff88; border-radius: 50%; animation: blink 1.5s ease-in-out infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .feed { display: flex; flex-direction: column; gap: 1rem; }
+        .card { background: linear-gradient(135deg, #0a0a0a 0%, #050505 100%); border: 1px solid #1a1a1a; border-radius: 12px; padding: 1.25rem; transition: all 0.2s; }
+        .card:hover { border-color: #2a2a2a; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .card-title { font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+        .card-badge { padding: 0.4rem 0.8rem; background: rgba(0, 255, 136, 0.1); border: 1px solid rgba(0, 255, 136, 0.2); border-radius: 6px; font-size: 13px; font-weight: 600; color: #00ff88; }
+        .card-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .meta-item { font-size: 12px; }
+        .meta-label { color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+        .meta-value { color: #fff; font-weight: 600; font-size: 14px; }
+        .card-actions { display: flex; gap: 0.75rem; }
+        .card-link { padding: 0.5rem 1rem; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 6px; color: #00ff88; text-decoration: none; font-size: 13px; transition: all 0.2s; }
+        .card-link:hover { border-color: #00ff88; background: rgba(0, 255, 136, 0.05); }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th { text-align: left; padding: 0.75rem; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1a1a1a; }
+        .table td { padding: 1rem 0.75rem; border-bottom: 1px solid #1a1a1a; font-size: 14px; }
+        .table tr:hover { background: #0a0a0a; }
+        .table-badge { padding: 0.25rem 0.6rem; background: rgba(0, 255, 136, 0.1); border-radius: 4px; font-size: 12px; font-weight: 600; color: #00ff88; }
+        .empty-state { text-align: center; padding: 5rem 2rem; color: #666; }
+        .empty-text { font-size: 16px; margin-bottom: 0.5rem; }
+        .empty-subtext { font-size: 14px; color: #444; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 4px; }
+
+        /* Logs */
+        .logs-container {
+            background: #0a0a0a;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            padding: 0.5rem;
+            border-bottom: 1px solid #1a1a1a;
+        }
+        .log-time {
+            color: #666;
+            margin-right: 0.5rem;
+        }
+        .log-level {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-right: 0.5rem;
+            font-size: 11px;
+        }
+        .log-level.info { background: rgba(0, 136, 255, 0.1); color: #0088ff; }
+        .log-level.error { background: rgba(255, 68, 68, 0.1); color: #ff4444; }
+        .log-level.warning { background: rgba(255, 136, 0, 0.1); color: #ff8800; }
+        .log-level.success { background: rgba(0, 255, 136, 0.1); color: #00ff88; }
+
+        ::-webkit-scrollbar-thumb:hover { background: #2a2a2a; }
+
+        /* Voice Widget Dot - Fixed Position */
+        .voice-widget-dot {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.4);
+            transition: all 0.3s ease;
+            z-index: 9998;
+        }
+
+        .voice-widget-dot:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 30px rgba(0, 255, 136, 0.6);
+        }
+
+        .voice-widget-dot::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: inherit;
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        .voice-widget-dot.listening {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .voice-widget-dot.speaking {
+            animation: speak 0.6s ease-in-out infinite;
+        }
+
+        @keyframes speak {
+            0%, 100% { transform: scale(1); }
+            25% { transform: scale(1.08); }
+            75% { transform: scale(1.12); }
+        }
+
+        .voice-widget-icon {
+            width: 24px;
+            height: 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Voice Panel Popup */
+        .voice-widget-panel {
+            position: fixed;
+            bottom: 90px;
+            right: 24px;
+            width: 400px;
+            max-height: 500px;
+            background: #0a0a0a;
+            border: 1px solid #00ff88;
+            border-radius: 16px;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 9999;
+        }
+
+        .voice-widget-panel.active {
+            display: flex;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .voice-widget-header {
+            padding: 16px;
+            border-bottom: 1px solid #1a1a1a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .voice-widget-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #00ff88;
+        }
+
+        .voice-widget-close {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+        }
+
+        .voice-widget-close:hover { color: #fff; }
+
+        .voice-widget-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .voice-widget-message {
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .voice-widget-message.user {
+            background: #1a1a1a;
+            color: #fff;
+            margin-left: 40px;
+        }
+
+        .voice-widget-message.assistant {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            margin-right: 40px;
+        }
+
+        .voice-widget-status {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            padding: 8px;
+        }
+
+        .voice-widget-input-area {
+            padding: 16px;
+            border-top: 1px solid #1a1a1a;
+            display: flex;
+            gap: 8px;
+        }
+
+        .voice-widget-input {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .voice-widget-input:focus {
+            outline: none;
+            border-color: #00ff88;
+        }
+
+        .voice-widget-send {
+            background: #00ff88;
+            border: none;
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .voice-widget-send:hover {
+            background: #00d4ff;
+        }
+    </style>
+</head>
+<body>
+    <!-- Voice Widget Dot -->
+    <div class="voice-widget-dot" id="voiceWidgetDot" onclick="toggleVoicePanel()">
+        <svg class="voice-widget-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+    </div>
+
+    <!-- Voice Widget Panel -->
+    <div class="voice-widget-panel" id="voiceWidgetPanel">
+        <div class="voice-widget-header">
+            <div class="voice-widget-title">🎤 AURA Voice</div>
+            <button class="voice-widget-close" onclick="toggleVoicePanel()">×</button>
+        </div>
+        <div class="voice-widget-messages" id="voiceWidgetMessages">
+            <div class="voice-widget-message assistant">
+                Click the dot or type to chat. I can show wallets, signals, and more.
+            </div>
+        </div>
+        <div class="voice-widget-status" id="voiceWidgetStatus"></div>
+        <div class="voice-widget-input-area">
+            <input type="text" class="voice-widget-input" id="voiceWidgetInput" placeholder="Ask anything..." onkeypress="if(event.key==='Enter')sendVoiceMessage()">
+            <button class="voice-widget-send" onclick="sendVoiceMessage()">Send</button>
+        </div>
+    </div>
+
+    <div class="app-wrapper">
+        <!-- Conversation Sidebar -->
+        <div class="conversation-sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">Conversations</div>
+                <button class="new-conversation-btn" onclick="createNewConversation()">+ New</button>
+            </div>
+            <div class="conversations-list" id="conversationsList">
+                <div class="sidebar-empty">Click "+ New" to start a conversation</div>
+            </div>
+        </div>
+
+        <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <div class="logo">AURA</div>
+                <div class="status"><div class="status-dot"></div><span id="statusText">Online</span></div>
+            </div>
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('chat')">Chat</button>
+                <button class="tab" onclick="switchTab('signals')">Signals</button>
+                <button class="tab" onclick="switchTab('wallets')">Wallets</button>
+                <button class="tab" onclick="switchTab('watchlist')">Watchlist</button>
+                <button class="tab" onclick="switchTab('portfolio')">Portfolio</button>
+                <button class="tab" onclick="switchTab('logs')">Logs</button>
+                <button class="tab" onclick="switchTab('twitter')">Twitter/X</button>
+            </div>
+        </div>
+
+        <!-- Voice Recording Overlay -->
+        <div class="voice-recording" id="voiceRecording">
+            <div class="voice-orb">
+                <div class="voice-icon-container">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="40" height="40">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                </div>
+                <div class="voice-ring"></div>
+                <div class="voice-ring" style="animation-delay: 0.5s;"></div>
+                <div class="voice-ring" style="animation-delay: 1s;"></div>
+                <div class="voice-bars" id="voiceBars">
+                    <div class="voice-bar" style="height: 5px;"></div>
+                    <div class="voice-bar" style="height: 10px;"></div>
+                    <div class="voice-bar" style="height: 15px;"></div>
+                    <div class="voice-bar" style="height: 20px;"></div>
+                    <div class="voice-bar" style="height: 15px;"></div>
+                    <div class="voice-bar" style="height: 10px;"></div>
+                    <div class="voice-bar" style="height: 5px;"></div>
+                </div>
+            </div>
+            <div class="voice-text">LISTENING</div>
+            <div class="voice-subtext">Speak naturally...</div>
+            <div class="voice-timer" id="voiceTimer">00:00</div>
+            <button class="voice-cancel" onclick="cancelVoice()">Cancel</button>
+        </div>
+
+        <div class="content">
+            <!-- Chat -->
+            <div class="tab-content active" id="chat-tab">
+                <div class="chat-container">
+                    <div class="messages" id="messages">
+                        <div class="message assistant">
+                            <div class="message-avatar">AI</div>
+                            <div class="message-content">I'm AURA. Ask me anything about signals, portfolio, market trends, or wallet activity. You can type or use voice input.</div>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <textarea id="chatInput" class="chat-input" placeholder="Ask AURA anything..." rows="2" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+                        <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                            </svg>
+                        </button>
+                        <button class="send-btn" onclick="sendMessage()">Send</button>
+                    </div>                </div>
+            </div>
+
+            <!-- Signals Tab - Same as before -->
+            <div class="tab-content" id="signals-tab">
+                <div class="live-header">
+                    <div class="live-title">Live Signal Feed</div>
+                    <div class="live-indicator"><div class="live-dot"></div><span>LIVE</span></div>
+                </div>
+                <div class="feed" id="signalsFeed">
+                    <div class="empty-state"><div class="empty-text">Monitoring for signals...</div></div>
+                </div>
+            </div>
+
+            <!-- Wallets Tab with Interactive Features -->
+            <div class="tab-content" id="wallets-tab">
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-label">Total Wallets</div><div class="stat-value" id="walletCount">0</div></div>
+                    <div class="stat-card"><div class="stat-label">Avg Win Rate</div><div class="stat-value positive" id="avgWinRate">0%</div></div>
+                    <div class="stat-card"><div class="stat-label">Active Wallets</div><div class="stat-value" id="activeWallets">0</div></div>
+                    <div class="stat-card"><div class="stat-label">Total Volume</div><div class="stat-value" id="totalVolume">$0</div></div>
+                </div>
+
+                <!-- Search and Filter Controls -->
+                <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                    <input type="text" id="walletSearch" placeholder="Search wallet name or address..."
+                           style="flex: 1; min-width: 250px; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 8px; padding: 0.75rem; color: #fff; font-size: 14px;"
+                           oninput="filterWallets()">
+                    <button onclick="filterBy('all')" id="filterAll" class="filter-btn active" style="padding: 0.75rem 1.5rem; background: #00ff88; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">All</button>
+                    <button onclick="filterBy('active')" id="filterActive" class="filter-btn" style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #666; border: 1px solid #2a2a2a; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">Active Only</button>
+                    <button onclick="filterBy('profitable')" id="filterProfitable" class="filter-btn" style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #666; border: 1px solid #2a2a2a; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">Profitable</button>
+                    <button onclick="filterBy('highWinRate')" id="filterHighWinRate" class="filter-btn" style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #666; border: 1px solid #2a2a2a; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">High Win Rate (>60%)</button>
+                    <button onclick="refreshWallets()" style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #00ff88; border: 1px solid #00ff88; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">🔄 Refresh</button>
+                </div>
+
+                <!-- Wallet Table -->
+                <table class="table" id="walletsTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortWallets('nickname')" style="cursor: pointer; user-select: none;">Wallet ↕</th>
+                            <th onclick="sortWallets('win_rate')" style="cursor: pointer; user-select: none;">Win Rate ↕</th>
+                            <th onclick="sortWallets('total_trades')" style="cursor: pointer; user-select: none;">Trades ↕</th>
+                            <th onclick="sortWallets('total_pnl')" style="cursor: pointer; user-select: none;">Total P&L ↕</th>
+                            <th onclick="sortWallets('last_trade')" style="cursor: pointer; user-select: none;">Last Trade ↕</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody><tr><td colspan="6" style="text-align: center; padding: 3rem; color: #666;">Loading wallets...</td></tr></tbody>
+                </table>
+            </div>
+
+            <div class="tab-content" id="watchlist-tab">
+                <div class="feed" id="watchlistFeed"><div class="empty-state"><div class="empty-text">No tokens in watchlist</div></div></div>
+            </div>
+
+            <div class="tab-content" id="portfolio-tab">
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-label">Portfolio Value</div><div class="stat-value" id="portfolioValue">$0.00</div></div>
+                    <div class="stat-card"><div class="stat-label">Total P&L</div><div class="stat-value" id="totalPnl">$0.00</div><div class="stat-subtext" id="pnlPercent">0.00%</div></div>
+                    <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-value positive" id="winRate">0%</div></div>
+                </div>
+                <table class="table" id="portfolioTable">
+                    <thead><tr><th>Token</th><th>Entry</th><th>Current</th><th>Amount</th><th>P&L</th><th>P&L %</th><th>Age</th></tr></thead>
+                    <tbody><tr><td colspan="7" style="text-align: center; padding: 3rem; color: #666;">No open positions</td></tr></tbody>
+                </table>
+            </div>
+
+            <!-- Logs Tab -->
+            <div class="tab-content" id="logs-tab">
+                <div class="live-header">
+                    <div class="live-title">System Logs</div>
+                    <div class="live-indicator"><div class="live-dot"></div><span>LIVE</span></div>
+                </div>
+                <div class="logs-container" id="logsContainer">
+                    <div class="log-entry"><span class="log-time">Loading...</span></div>
+                </div>
+            </div>
+
+            <!-- Twitter/X Tab -->
+            <div class="tab-content" id="twitter-tab">
+                <div class="live-header">
+                    <div class="live-title">Social Momentum</div>
+                    <div class="live-indicator"><div class="live-dot"></div><span>LIVE</span></div>
+                </div>
+                <div class="feed" id="twitterFeed">
+                    <div class="empty-state"><div class="empty-text">Monitoring social sentiment...</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let currentTab = 'chat';
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let allWallets = [];
+        let currentFilter = 'all';
+        let currentSort = { field: 'win_rate', direction: 'desc' };
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            if (tabName === 'signals') loadSignals();
+            if (tabName === 'wallets') loadWallets();
+            if (tabName === 'watchlist') loadWatchlist();
+            if (tabName === 'portfolio') loadPortfolio();
+            if (tabName === 'logs') loadLogs();
+            if (tabName === 'twitter') loadTwitter();
+        }
+
+        // Voice Input
+        let voiceTimer = null;
+        let voiceStartTime = 0;
+        let audioContext = null;
+        let analyser = null;
+        let animationId = null;
+        let silenceTimeout = null;
+        let lastSoundTime = 0;
+        const SILENCE_THRESHOLD = 20;  // Lower = more sensitive to silence
+        const SILENCE_DURATION = 2500;  // Wait 2.5 seconds of silence before auto-stop
+        let browserRecognition = null;
+        let browserTranscript = null;
+        let browserRecognitionActive = false;
+
+        async function toggleVoice() {
+            const voiceBtn = document.getElementById('voiceBtn');
+            const voiceOverlay = document.getElementById('voiceRecording');
+
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    startBrowserRecognition();
+
+                    // Setup audio visualization
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    source.connect(analyser);
+                    analyser.fftSize = 256;
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        stream.getTracks().forEach(track => track.stop());
+                        if (audioContext) audioContext.close();
+                        stopVisualization();
+                        stopTimer();
+                        stopSilenceDetection();
+                        stopBrowserRecognition();
+
+                        const transcript = browserTranscript ? browserTranscript.trim() : '';
+                        browserTranscript = null;
+
+                        if (transcript) {
+                            document.getElementById('chatInput').value = transcript;
+                            sendMessage();
+                            return;
+                        }
+
+                        await transcribeAudio(audioBlob);
+                    };
+
+                    mediaRecorder.start();
+                    voiceBtn.classList.add('recording');
+                    voiceOverlay.classList.add('active');
+
+                    // Start visualizer, timer, and silence detection
+                    startVisualization();
+                    startTimer();
+                    startSilenceDetection();
+                } catch (error) {
+                    console.error('Microphone error:', error);
+                    alert('Microphone access denied. Please enable microphone permissions.');
+                }
+            } else {
+                mediaRecorder.stop();
+                voiceBtn.classList.remove('recording');
+                voiceOverlay.classList.remove('active');
+            }
+        }
+
+        function cancelVoice() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContext) audioContext.close();
+            stopVisualization();
+            stopTimer();
+            stopSilenceDetection();
+            stopBrowserRecognition();
+            document.getElementById('voiceBtn').classList.remove('recording');
+            document.getElementById('voiceRecording').classList.remove('active');
+        }
+
+        function startTimer() {
+            voiceStartTime = Date.now();
+            voiceTimer = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - voiceStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('voiceTimer').textContent = `${minutes}:${seconds}`;
+            }, 100);
+        }
+
+        function stopTimer() {
+            if (voiceTimer) {
+                clearInterval(voiceTimer);
+                voiceTimer = null;
+            }
+            document.getElementById('voiceTimer').textContent = '00:00';
+        }
+
+        function startVisualization() {
+            const bars = document.querySelectorAll('.voice-bar');
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            function animate() {
+                animationId = requestAnimationFrame(animate);
+                analyser.getByteFrequencyData(dataArray);
+
+                // Update bars based on audio levels
+                bars.forEach((bar, index) => {
+                    const dataIndex = Math.floor((index / bars.length) * bufferLength);
+                    const value = dataArray[dataIndex] || 0;
+                    const height = Math.max(5, (value / 255) * 30);
+                    bar.style.height = `${height}px`;
+                });
+            }
+
+            animate();
+        }
+
+        function stopVisualization() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            // Reset bars
+            document.querySelectorAll('.voice-bar').forEach(bar => {
+                bar.style.height = '5px';
+            });
+        }
+
+
+        function startSilenceDetection() {
+            lastSoundTime = Date.now();
+
+            function checkSilence() {
+                if (!analyser || !mediaRecorder || mediaRecorder.state !== 'recording') {
+                    return;
+                }
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+
+                if (average > SILENCE_THRESHOLD) {
+                    lastSoundTime = Date.now();
+                } else {
+                    const silenceDuration = Date.now() - lastSoundTime;
+                    if (silenceDuration > SILENCE_DURATION && (Date.now() - voiceStartTime) > 1000) {
+                        console.log('Auto-stopping due to silence');
+                        if (mediaRecorder && mediaRecorder.state === 'recording') {
+                            mediaRecorder.stop();
+                            document.getElementById('voiceBtn').classList.remove('recording');
+                        }
+                        return;
+                    }
+                }
+
+                silenceTimeout = setTimeout(checkSilence, 100);
+            }
+
+            checkSilence();
+        }
+
+        function stopSilenceDetection() {
+            if (silenceTimeout) {
+                clearTimeout(silenceTimeout);
+                silenceTimeout = null;
+            }
+        }
+
+        function startBrowserRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                browserRecognition = null;
+                browserTranscript = null;
+                browserRecognitionActive = false;
+                return;
+            }
+
+            browserTranscript = null;
+            try {
+                browserRecognition = new webkitSpeechRecognition();
+                browserRecognition.continuous = false;
+                browserRecognition.interimResults = false;
+                browserRecognition.lang = 'en-US';
+
+                browserRecognition.onstart = () => {
+                    browserRecognitionActive = true;
+                };
+
+                browserRecognition.onresult = (event) => {
+                    if (event.results && event.results[0] && event.results[0][0]) {
+                        browserTranscript = event.results[0][0].transcript || '';
+                    }
+                };
+
+                browserRecognition.onerror = (event) => {
+                    console.warn('Browser speech recognition error:', event.error);
+                };
+
+                browserRecognition.onend = () => {
+                    browserRecognitionActive = false;
+                };
+
+                browserRecognition.start();
+            } catch (error) {
+                console.warn('Browser speech recognition start failed:', error);
+                browserRecognition = null;
+                browserTranscript = null;
+                browserRecognitionActive = false;
+            }
+        }
+
+        function stopBrowserRecognition() {
+            if (browserRecognition) {
+                try {
+                    browserRecognition.stop();
+                } catch (error) {
+                    console.warn('Browser speech recognition stop failed:', error);
+                }
+            }
+            browserRecognition = null;
+            browserRecognitionActive = false;
+        }
+
+        async function transcribeAudio(audioBlob) {
+            // Show processing message
+            const voiceOverlay = document.getElementById('voiceRecording');
+            voiceOverlay.querySelector('.voice-text').textContent = 'PROCESSING';
+            voiceOverlay.querySelector('.voice-subtext').textContent = 'Transcribing your voice...';
+
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'voice.webm');
+
+                const response = await fetch(`${API_BASE}/api/aura/voice`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                // Hide overlay
+                voiceOverlay.classList.remove('active');
+
+                // Reset text
+                setTimeout(() => {
+                    voiceOverlay.querySelector('.voice-text').textContent = 'LISTENING';
+                    voiceOverlay.querySelector('.voice-subtext').textContent = 'Speak naturally...';
+                }, 300);
+
+                if (data.transcription) {
+                    document.getElementById('chatInput').value = data.transcription;
+                    sendMessage();
+                } else {
+                    const friendlyError = data.error ? `⚠️ ${data.error}` : 'Could not transcribe audio. Please try again.';
+                    addMessage('assistant', friendlyError);
+                }
+            } catch (error) {
+                console.error('Transcription error:', error);
+                voiceOverlay.classList.remove('active');
+                const errorMessage = error?.message ? `⚠️ Voice transcription failed: ${error.message}` : '⚠️ Voice transcription failed. Please check your connection and try again.';
+                addMessage('assistant', errorMessage);
+            }
+        }
+
+        // Chat
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage('user', message);
+            input.value = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: message })
+                });
+                const data = await response.json();
+                addMessage('assistant', data.message || 'I understand.');
+            } catch (error) {
+                addMessage('assistant', 'Error connecting to AURA');
+            }
+        }
+
+        // Text-to-Speech function using ElevenLabs
+        let currentAudio = null;
+        let isSpeaking = false;
+        let speakQueue = [];
+
+        async function speakText(text) {
+            // Queue if already speaking
+            if (isSpeaking) {
+                console.log('⚠️ Already speaking, adding to queue...');
+                speakQueue.push(text);
+                return;
+            }
+
+            isSpeaking = true;
+
+            // Add speaking indicator to status
+            const statusText = document.getElementById('statusText');
+            const originalStatus = statusText.textContent;
+            statusText.textContent = '🔊 Speaking...';
+
+            try {
+                console.log('🔊 Speaking with ElevenLabs:', text.substring(0, 50) + '...');
+
+                // Call ElevenLabs API through backend
+                const response = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                console.log('📡 ElevenLabs response status:', response.status);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+                    console.error('❌ ElevenLabs error:', errorData);
+                    throw new Error('ElevenLabs failed: ' + (errorData.error || response.status));
+                }
+
+                // Check if response is JSON error or audio
+                const contentType = response.headers.get('content-type');
+                console.log('📄 Content-Type:', contentType);
+
+                if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    console.error('❌ ElevenLabs returned error:', errorData);
+                    throw new Error('ElevenLabs error: ' + (errorData.error || 'Unknown'));
+                }
+
+                const audioBlob = await response.blob();
+                console.log('✅ Got ElevenLabs audio:', audioBlob.size, 'bytes, type:', audioBlob.type);
+
+                // Validate audio blob
+                if (audioBlob.size === 0) {
+                    throw new Error('Empty audio response');
+                }
+
+                // Stop any current audio
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio = null;
+                }
+
+                // Play new audio
+                const audioUrl = URL.createObjectURL(audioBlob);
+                currentAudio = new Audio(audioUrl);
+
+                currentAudio.onended = () => {
+                    console.log('✅ Audio playback complete');
+                    URL.revokeObjectURL(audioUrl);
+                    isSpeaking = false;
+                    statusText.textContent = originalStatus;
+
+                    // Process queue
+                    if (speakQueue.length > 0) {
+                        const nextText = speakQueue.shift();
+                        setTimeout(() => speakText(nextText), 100);
+                    }
+                };
+
+                currentAudio.onerror = (e) => {
+                    console.error('❌ Audio playback error:', e);
+                    isSpeaking = false;
+                    statusText.textContent = originalStatus;
+                    URL.revokeObjectURL(audioUrl);
+
+                    // Try fallback
+                    fallbackToSpeechSynthesis(text);
+                };
+
+                // Enable audio context on first play
+                await currentAudio.play();
+                console.log('✅ Playing ElevenLabs voice');
+
+            } catch (error) {
+                console.error('❌ ElevenLabs error:', error);
+                isSpeaking = false;
+                statusText.textContent = originalStatus;
+
+                // Fallback to browser speech
+                fallbackToSpeechSynthesis(text);
+            }
+        }
+
+        function fallbackToSpeechSynthesis(text) {
+            if ('speechSynthesis' in window) {
+                console.log('⚠️ Falling back to browser speech synthesis');
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 1.1;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+                utterance.onend = () => {
+                    console.log('✅ Browser speech complete');
+                    isSpeaking = false;
+
+                    // Process queue
+                    if (speakQueue.length > 0) {
+                        const nextText = speakQueue.shift();
+                        setTimeout(() => speakText(nextText), 100);
+                    }
+                };
+                utterance.onerror = (e) => {
+                    console.error('❌ Browser speech error:', e);
+                    isSpeaking = false;
+                };
+                window.speechSynthesis.speak(utterance);
+            } else {
+                console.error('❌ No speech synthesis available');
+                // Show user-friendly error
+                const messagesDiv = document.getElementById('messages');
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'message assistant';
+                errorDiv.innerHTML = `<div class="message-avatar">⚠️</div><div class="message-content">Voice playback unavailable. Please check your browser settings or enable microphone permissions.</div>`;
+                messagesDiv.appendChild(errorDiv);
+            }
+        }
+
+        function addMessage(role, content) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            // Speak assistant messages
+            if (role === 'assistant') {
+                speakText(content);
+            }
+            messageDiv.innerHTML = `<div class="message-avatar">${role === 'user' ? 'YOU' : 'AI'}</div><div class="message-content">${content}</div>`;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Load Data Functions
+        async function loadSignals() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/scanner/signals?hours=24&limit=50`);
+                const data = await response.json();
+                const signals = data.signals || [];
+                const feedEl = document.getElementById('signalsFeed');
+                if (signals.length === 0) {
+                    feedEl.innerHTML = '<div class="empty-state"><div class="empty-text">No signals yet</div><div class="empty-subtext">Scanner is monitoring</div></div>';
+                } else {
+                    let html = '';
+                    signals.forEach(signal => {
+                        html += `<div class="card">
+                            <div class="card-header"><div class="card-title">${signal.symbol}</div><div class="card-badge">${signal.momentum_score.toFixed(1)}</div></div>
+                            <div class="card-meta">
+                                <div class="meta-item"><div class="meta-label">Market Cap</div><div class="meta-value">$${(signal.market_cap || 0).toLocaleString()}</div></div>
+                                <div class="meta-item"><div class="meta-label">Liquidity</div><div class="meta-value">$${(signal.liquidity || 0).toLocaleString()}</div></div>
+                            </div>
+                            <div class="card-actions">
+                                <a href="https://dexscreener.com/solana/${signal.token_address}" target="_blank" class="card-link">Dexscreener</a>
+                                <a href="https://birdeye.so/token/${signal.token_address}" target="_blank" class="card-link">Birdeye</a>
+                            </div>
+                        </div>`;
+                    });
+                    feedEl.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Signals error:', error);
+            }
+        }
+
+        // Search, Filter, and Sort Functions
+        function filterBy(type) {
+            currentFilter = type;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.style.background = '#1a1a1a';
+                btn.style.color = '#666';
+                btn.style.border = '1px solid #2a2a2a';
+            });
+            document.getElementById(`filter${type.charAt(0).toUpperCase() + type.slice(1)}`).style.background = '#00ff88';
+            document.getElementById(`filter${type.charAt(0).toUpperCase() + type.slice(1)}`).style.color = '#000';
+            document.getElementById(`filter${type.charAt(0).toUpperCase() + type.slice(1)}`).style.border = 'none';
+            renderWallets();
+        }
+
+        function filterWallets() {
+            renderWallets();
+        }
+
+        function sortWallets(field) {
+            if (currentSort.field === field) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.direction = 'desc';
+            }
+            renderWallets();
+        }
+
+        function refreshWallets() {
+            loadWallets();
+        }
+
+        function renderWallets() {
+            const searchTerm = document.getElementById('walletSearch').value.toLowerCase();
+
+            // Filter wallets
+            let filtered = allWallets.filter(wallet => {
+                const matchesSearch = wallet.nickname.toLowerCase().includes(searchTerm) ||
+                                     wallet.address.toLowerCase().includes(searchTerm);
+
+                if (!matchesSearch) return false;
+
+                switch(currentFilter) {
+                    case 'active':
+                        return wallet.total_trades > 0;
+                    case 'profitable':
+                        return wallet.total_pnl > 0;
+                    case 'highWinRate':
+                        return wallet.win_rate >= 60;
+                    default:
+                        return true;
+                }
+            });
+
+            // Sort wallets
+            filtered.sort((a, b) => {
+                let aVal = a[currentSort.field] || 0;
+                let bVal = b[currentSort.field] || 0;
+
+                if (currentSort.field === 'nickname') {
+                    aVal = (a.nickname || '').toLowerCase();
+                    bVal = (b.nickname || '').toLowerCase();
+                }
+
+                if (currentSort.direction === 'asc') {
+                    return aVal > bVal ? 1 : -1;
+                } else {
+                    return aVal < bVal ? 1 : -1;
+                }
+            });
+
+            // Calculate stats
+            const activeCount = allWallets.filter(w => w.total_trades > 0).length;
+            const avgWinRate = allWallets.filter(w => w.total_trades > 0).reduce((sum, w) => sum + w.win_rate, 0) / activeCount || 0;
+            const totalVolume = allWallets.reduce((sum, w) => sum + Math.abs(w.total_pnl || 0), 0);
+
+            document.getElementById('walletCount').textContent = allWallets.length;
+            document.getElementById('activeWallets').textContent = activeCount;
+            document.getElementById('avgWinRate').textContent = avgWinRate.toFixed(1) + '%';
+            document.getElementById('totalVolume').textContent = '$' + totalVolume.toLocaleString();
+
+            // Render table
+            let html = '';
+            filtered.forEach(wallet => {
+                const address = wallet.address || 'Unknown';
+                const nickname = wallet.nickname || 'Whale';
+                const winRate = wallet.win_rate || 0;
+                const totalTrades = wallet.total_trades || 0;
+                const totalPnl = wallet.total_pnl || 0;
+                const lastTrade = wallet.last_trade ? new Date(wallet.last_trade).toLocaleDateString() : 'Never';
+                const isActive = wallet.is_active || totalTrades > 0;
+
+                html += `<tr style="${totalTrades === 0 ? 'opacity: 0.5' : ''}; cursor: pointer;"
+                            onclick="showWalletDetails('${address}')"
+                            onmouseover="this.style.background='#0a0a0a'"
+                            onmouseout="this.style.background=''">
+                    <td>
+                        <div style="font-weight: 600;">${nickname}</div>
+                        <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                            <code style="font-size: 11px; color: #666;">${address.substring(0, 8)}...${address.substring(address.length - 4)}</code>
+                            <a href="https://solscan.io/account/${address}" target="_blank"
+                               onclick="event.stopPropagation()"
+                               style="font-size: 10px; color: #00ff88; text-decoration: none; padding: 2px 6px; background: #00ff8820; border-radius: 4px;">Solscan</a>
+                            <a href="https://axiom.xyz/address/${address}" target="_blank"
+                               onclick="event.stopPropagation()"
+                               style="font-size: 10px; color: #00ff88; text-decoration: none; padding: 2px 6px; background: #00ff8820; border-radius: 4px;">Axiom</a>
+                        </div>
+                    </td>
+                    <td style="font-weight: 600; color: ${winRate >= 60 ? '#00ff88' : winRate >= 50 ? '#ffa500' : '#666'};">
+                        ${totalTrades > 0 ? winRate.toFixed(1) + '%' : '-'}
+                    </td>
+                    <td>${totalTrades > 0 ? totalTrades : '-'}</td>
+                    <td class="${totalPnl >= 0 ? 'positive' : 'negative'}" style="font-weight: 600;">
+                        ${totalTrades > 0 ? '$' + totalPnl.toLocaleString() : '-'}
+                    </td>
+                    <td style="font-size: 12px; color: #999;">${lastTrade}</td>
+                    <td>
+                        <span class="table-badge" style="background: ${isActive ? '#00ff88' : '#666'}20; color: ${isActive ? '#00ff88' : '#666'};">
+                            ${isActive ? 'Active' : 'Tracking'}
+                        </span>
+                    </td>
+                </tr>`;
+            });
+
+            document.getElementById('walletsTable').querySelector('tbody').innerHTML = html || '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#666;">No wallets match filters</td></tr>';
+        }
+
+        async function loadWallets() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/wallets/v2`);
+                const data = await response.json();
+                allWallets = data.wallets || [];
+                console.log(`Loaded ${allWallets.length} wallets`);
+                renderWallets();
+            } catch (error) {
+                console.error('Wallets error:', error);
+                document.getElementById('walletsTable').querySelector('tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#dc3545;">Error loading wallets</td></tr>';
+            }
+        }
+
+        async function loadWatchlist() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/watchlist`);
+                const data = await response.json();
+                const watchlist = data.watchlist || [];
+                const feedEl = document.getElementById('watchlistFeed');
+                if (watchlist.length === 0) {
+                    feedEl.innerHTML = '<div class="empty-state"><div class="empty-text">No tokens tracked</div></div>';
+                } else {
+                    let html = '';
+                    watchlist.forEach(item => {
+                        const token = item.token || {};
+                        html += `<div class="card"><div class="card-header"><div class="card-title">${token.symbol || 'Unknown'}</div></div><div style="margin:1rem 0;color:#999;">${item.reason || 'No reason'}</div></div>`;
+                    });
+                    feedEl.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Watchlist error:', error);
+            }
+        }
+
+        async function loadPortfolio() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/portfolio`);
+                const data = await response.json();
+                const summary = data.summary;
+                const positions = data.open_positions;
+
+                document.getElementById('portfolioValue').textContent = `$${summary.open_value_usd.toFixed(2)}`;
+                document.getElementById('totalPnl').textContent = `$${summary.total_pnl_usd.toFixed(2)}`;
+                document.getElementById('totalPnl').className = `stat-value ${summary.total_pnl_usd >= 0 ? 'positive' : 'negative'}`;
+                document.getElementById('pnlPercent').textContent = `${summary.total_pnl_percent >= 0 ? '+' : ''}${summary.total_pnl_percent.toFixed(2)}%`;
+                document.getElementById('winRate').textContent = `${summary.win_rate.toFixed(1)}%`;
+
+                if (positions.length > 0) {
+                    let html = '';
+                    positions.forEach(pos => {
+                        const pnl = pos.pnl_usd || 0;
+                        const pnlClass = pnl >= 0 ? 'positive' : 'negative';
+                        html += `<tr>
+                            <td><strong>${pos.symbol || 'Unknown'}</strong></td>
+                            <td>$${pos.entry_price.toFixed(6)}</td>
+                            <td>$${(pos.current_price || pos.entry_price).toFixed(6)}</td>
+                            <td>${pos.amount.toFixed(2)}</td>
+                            <td class="${pnlClass}">$${pnl.toFixed(2)}</td>
+                            <td class="${pnlClass}">${(pos.pnl_percent || 0).toFixed(2)}%</td>
+                            <td>${formatAge(pos.entry_time)}</td>
+                        </tr>`;
+                    });
+                    document.getElementById('portfolioTable').querySelector('tbody').innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Portfolio error:', error);
+            }
+        }
+
+        function formatAge(timestamp) {
+            if (!timestamp) return 'Unknown';
+            const date = new Date(timestamp);
+            const diff = Math.floor((new Date() - date) / 1000);
+            if (diff < 60) return `${diff}s`;
+            if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+            return `${Math.floor(diff / 86400)}d`;
+        }
+
+
+        // Logs Tab
+        async function loadLogs() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/logs?limit=100`);
+                const data = await response.json();
+                const logs = data.logs || [];
+
+                const container = document.getElementById('logsContainer');
+                if (logs.length === 0) {
+                    container.innerHTML = '<div class="log-entry"><span class="log-time">No logs available</span></div>';
+                } else {
+                    container.innerHTML = logs.map(log => `
+                        <div class="log-entry">
+                            <span class="log-time">${log.timestamp}</span>
+                            <span class="log-level ${log.level}">${log.level.toUpperCase()}</span>
+                            ${log.message}
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Logs error:', error);
+            }
+        }
+
+        // Wallet Details Modal
+        async function showWalletDetails(walletAddress) {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/wallet/${walletAddress}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    alert(`Error: ${data.error}`);
+                    return;
+                }
+
+                const wallet = data.wallet;
+                const stats = data.stats;
+                const trades = data.recent_trades || [];
+
+                // Build modal content
+                let html = `
+                    <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="this.remove()">
+                        <div style="background: #0a0a0a; border: 1px solid #00ff88; border-radius: 12px; max-width: 900px; width: 90%; max-height: 90vh; overflow: auto; padding: 2rem;" onclick="event.stopPropagation()">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                                <h2 style="margin: 0; color: #00ff88;">${wallet.nickname}</h2>
+                                <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; color: #999; font-size: 24px; cursor: pointer;">&times;</button>
+                            </div>
+
+                            <div style="margin-bottom: 1.5rem;">
+                                <code style="font-size: 12px; color: #666;">${wallet.address}</code>
+                                <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                                    <a href="${wallet.solscan_url}" target="_blank" style="color: #00ff88; text-decoration: none; font-size: 14px;">View on Solscan →</a>
+                                    <a href="${wallet.axiom_url}" target="_blank" style="color: #00ff88; text-decoration: none; font-size: 14px;">View on Axiom →</a>
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                                <div style="background: #111; padding: 1rem; border-radius: 8px;">
+                                    <div style="color: #666; font-size: 12px; margin-bottom: 0.5rem;">WIN RATE</div>
+                                    <div style="font-size: 24px; font-weight: 600; color: ${stats.win_rate >= 60 ? '#00ff88' : stats.win_rate >= 50 ? '#ffa500' : '#ff4444'};">${stats.win_rate.toFixed(1)}%</div>
+                                </div>
+                                <div style="background: #111; padding: 1rem; border-radius: 8px;">
+                                    <div style="color: #666; font-size: 12px; margin-bottom: 0.5rem;">TOTAL TRADES</div>
+                                    <div style="font-size: 24px; font-weight: 600;">${stats.total_trades}</div>
+                                </div>
+                                <div style="background: #111; padding: 1rem; border-radius: 8px;">
+                                    <div style="color: #666; font-size: 12px; margin-bottom: 0.5rem;">WINNING TRADES</div>
+                                    <div style="font-size: 24px; font-weight: 600; color: #00ff88;">${stats.winning_trades}</div>
+                                </div>
+                                <div style="background: #111; padding: 1rem; border-radius: 8px;">
+                                    <div style="color: #666; font-size: 12px; margin-bottom: 0.5rem;">TOTAL P&L</div>
+                                    <div style="font-size: 24px; font-weight: 600; color: ${stats.total_pnl >= 0 ? '#00ff88' : '#ff4444'};">\$${stats.total_pnl.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                                </div>
+                            </div>
+
+                            <h3 style="margin-bottom: 1rem; color: #00ff88;">Recent Trades (${trades.length})</h3>
+                            ${trades.length === 0 ? '<div style="text-align: center; color: #666; padding: 2rem;">No recent trades</div>' : `
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                ${trades.map(trade => `
+                                    <div style="background: #111; padding: 1rem; margin-bottom: 0.5rem; border-radius: 6px; border-left: 3px solid ${trade.type === 'buy' ? '#00ff88' : '#ff4444'};">
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                            <div>
+                                                <span style="font-weight: 600; color: ${trade.type === 'buy' ? '#00ff88' : '#ff4444'}; text-transform: uppercase;">${trade.type}</span>
+                                                <code style="margin-left: 1rem; font-size: 11px; color: #666;">${trade.token_address.substring(0, 12)}...</code>
+                                            </div>
+                                            <div style="font-weight: 600;">\$${trade.value_usd.toFixed(2)}</div>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666;">
+                                            <div>${new Date(trade.timestamp).toLocaleString()}</div>
+                                            <div>
+                                                <a href="${trade.solscan_url}" target="_blank" style="color: #00ff88; text-decoration: none; margin-right: 1rem;">Solscan</a>
+                                                <a href="${trade.axiom_url}" target="_blank" style="color: #00ff88; text-decoration: none;">Axiom</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+
+                // Add modal to page
+                document.body.insertAdjacentHTML('beforeend', html);
+            } catch (error) {
+                console.error('Error loading wallet details:', error);
+                alert('Failed to load wallet details');
+            }
+        }
+
+        // Twitter/X Tab
+        async function loadTwitter() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/social/momentum`);
+                const data = await response.json();
+                const trends = data.trends || [];
+
+                const feedEl = document.getElementById('twitterFeed');
+                if (trends.length === 0) {
+                    feedEl.innerHTML = '<div class="empty-state"><div class="empty-text">No trending tokens</div></div>';
+                } else {
+                    let html = '';
+                    trends.forEach(trend => {
+                        const sentimentClass = trend.sentiment > 0.6 ? 'positive' : 'negative';
+                        html += `<div class="card">
+                            <div class="card-header">
+                                <div class="card-title">$${trend.symbol}</div>
+                                <div class="card-badge">${trend.mentions} mentions</div>
+                            </div>
+                            <div class="card-meta">
+                                <div class="meta-item">
+                                    <div class="meta-label">Sentiment</div>
+                                    <div class="meta-value ${sentimentClass}">
+                                        ${(trend.sentiment * 100).toFixed(0)}%
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-label">24h Change</div>
+                                    <div class="meta-value ${trend.change_24h > 0 ? 'positive' : 'negative'}">
+                                        ${trend.change_24h > 0 ? '+' : ''}${trend.change_24h.toFixed(1)}%
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-label">Volume</div>
+                                    <div class="meta-value">$${(trend.volume_24h / 1000).toFixed(0)}K</div>
+                                </div>
+                            </div>
+                            <div class="card-actions">
+                                <a href="https://twitter.com/search?q=%24${trend.symbol}" target="_blank" class="card-link">View Tweets</a>
+                                <a href="https://dexscreener.com/solana/${trend.symbol}" target="_blank" class="card-link">Chart</a>
+                            </div>
+                        </div>`;
+                    });
+                    feedEl.innerHTML = html;
+                }
+            } catch (error) {
+                console.error('Twitter error:', error);
+            }
+        }
+
+        // WebSocket Connection for Real-Time Updates
+        let ws = null;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
+
+        function connectWebSocket() {
+            try {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    reconnectAttempts = 0;
+                    document.getElementById('statusText').textContent = 'Online (Live)';
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (e) {
+                        console.log('WebSocket message:', event.data);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+
+                ws.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    document.getElementById('statusText').textContent = 'Reconnecting...';
+
+                    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                        reconnectAttempts++;
+                        setTimeout(connectWebSocket, 3000 * reconnectAttempts);
+                    } else {
+                        document.getElementById('statusText').textContent = 'Offline';
+                    }
+                };
+            } catch (error) {
+                console.error('WebSocket connection error:', error);
+                document.getElementById('statusText').textContent = 'WebSocket not available';
+            }
+        }
+
+        function handleWebSocketMessage(data) {
+            if (data.type === 'whale_trade') {
+                // New whale trade detected
+                console.log('New whale trade:', data);
+                showTradeNotification(data);
+                if (currentTab === 'wallets') {
+                    refreshWallets();
+                }
+            } else if (data.type === 'signal') {
+                // New signal detected
+                if (currentTab === 'signals') {
+                    loadSignals();
+                }
+            } else if (data.type === 'wallet_update') {
+                // Wallet stats updated
+                if (currentTab === 'wallets') {
+                    updateWalletInTable(data.wallet);
+                }
+            }
+        }
+
+        function showTradeNotification(data) {
+            // Show desktop notification if permitted
+            if ("Notification" in window && Notification.permission === "granted") {
+                const notification = new Notification('Whale Trade Alert', {
+                    body: `${data.wallet_nickname || 'Whale'} made a ${data.trade_type} worth $${data.value_usd.toFixed(2)}`,
+                    icon: '/favicon.ico',
+                    tag: 'whale-trade'
+                });
+
+                setTimeout(() => notification.close(), 5000);
+            }
+
+            // Show in-app notification
+            const notifDiv = document.createElement('div');
+            notifDiv.style.cssText = 'position: fixed; top: 80px; right: 20px; background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%); color: #000; padding: 1rem 1.5rem; border-radius: 8px; font-weight: 600; z-index: 9999; box-shadow: 0 4px 20px rgba(0,255,136,0.3); animation: slideIn 0.3s ease-out;';
+            notifDiv.textContent = `Trade Alert: ${data.wallet_nickname || 'Whale'} ${data.trade_type} $${data.value_usd.toFixed(2)}`;
+            document.body.appendChild(notifDiv);
+
+            setTimeout(() => {
+                notifDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notifDiv.remove(), 300);
+            }, 4000);
+        }
+
+        function updateWalletInTable(walletData) {
+            // Update a specific wallet row without full refresh
+            const walletIndex = allWallets.findIndex(w => w.address === walletData.address);
+            if (walletIndex !== -1) {
+                allWallets[walletIndex] = walletData;
+                renderWallets();
+            }
+        }
+
+        // Request notification permission
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+
+        // Auto-refresh (with less frequency since WebSocket provides real-time updates)
+        setInterval(() => {
+            if (currentTab === 'signals') loadSignals();
+            if (currentTab === 'portfolio') loadPortfolio();
+            if (currentTab === 'wallets') loadWallets();
+        }, 30000); // Refresh every 30 seconds
+
+        // Connect WebSocket on load
+        connectWebSocket();
+
+        // Initialize
+        loadSignals();
+
+        // ===== VOICE WIDGET FUNCTIONS =====
+        const voiceWidgetDot = document.getElementById('voiceWidgetDot');
+        const voiceWidgetPanel = document.getElementById('voiceWidgetPanel');
+        const voiceWidgetMessages = document.getElementById('voiceWidgetMessages');
+        const voiceWidgetStatus = document.getElementById('voiceWidgetStatus');
+        const voiceWidgetInput = document.getElementById('voiceWidgetInput');
+
+        let voiceRecognition;
+        let isVoiceListening = false;
+
+        function toggleVoicePanel() {
+            voiceWidgetPanel.classList.toggle('active');
+            if (voiceWidgetPanel.classList.contains('active')) {
+                voiceWidgetInput.focus();
+            }
+        }
+
+        // Click dot to start voice when panel is open
+        voiceWidgetDot.addEventListener('click', () => {
+            if (!voiceWidgetPanel.classList.contains('active')) {
+                toggleVoicePanel();
+            } else {
+                startVoiceRecognition();
+            }
+        });
+
+        function startVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                addVoiceMessage('assistant', 'Voice recognition not supported. Please type instead.');
+                return;
+            }
+
+            if (isVoiceListening) {
+                stopVoiceListening();
+                return;
+            }
+
+            voiceRecognition = new webkitSpeechRecognition();
+            voiceRecognition.continuous = false;
+            voiceRecognition.interimResults = false;
+
+            voiceRecognition.onstart = () => {
+                isVoiceListening = true;
+                voiceWidgetDot.classList.add('listening');
+                voiceWidgetStatus.textContent = '🎤 Listening...';
+            };
+
+            voiceRecognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                voiceWidgetInput.value = transcript;
+                sendVoiceMessage();
+            };
+
+            voiceRecognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                stopVoiceListening();
+                voiceWidgetStatus.textContent = '❌ Error: ' + event.error;
+            };
+
+            voiceRecognition.onend = () => {
+                stopVoiceListening();
+            };
+
+            voiceRecognition.start();
+        }
+
+        function stopVoiceListening() {
+            if (voiceRecognition) {
+                voiceRecognition.stop();
+            }
+            isVoiceListening = false;
+            voiceWidgetDot.classList.remove('listening');
+            voiceWidgetStatus.textContent = '';
+        }
+
+        async function sendVoiceMessage() {
+            const text = voiceWidgetInput.value.trim();
+            if (!text) return;
+
+            addVoiceMessage('user', text);
+            voiceWidgetInput.value = '';
+            voiceWidgetStatus.textContent = '🤔 Thinking...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: text })
+                });
+
+                const data = await response.json();
+                const reply = data.message || data.response || 'Done!';
+
+                addVoiceMessage('assistant', reply);
+
+                // Speak response with ElevenLabs
+                await speakVoiceText(reply);
+
+                voiceWidgetStatus.textContent = '';
+            } catch (error) {
+                console.error('Voice chat error:', error);
+                addVoiceMessage('assistant', '❌ Error connecting to AURA');
+                voiceWidgetStatus.textContent = '';
+            }
+        }
+
+        async function speakVoiceText(text) {
+            voiceWidgetDot.classList.add('speaking');
+            voiceWidgetStatus.textContent = '🔊 Speaking...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                console.log('Voice widget TTS response:', response.status);
+
+                if (response.ok && response.headers.get('content-type')?.includes('audio')) {
+                    const audioBlob = await response.blob();
+
+                    if (audioBlob.size === 0) {
+                        throw new Error('Empty audio response');
+                    }
+
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+
+                    audio.onended = () => {
+                        voiceWidgetDot.classList.remove('speaking');
+                        voiceWidgetStatus.textContent = '';
+                        URL.revokeObjectURL(audioUrl);
+                    };
+
+                    audio.onerror = (e) => {
+                        console.error('Audio playback error:', e);
+                        voiceWidgetDot.classList.remove('speaking');
+                        voiceWidgetStatus.textContent = '❌ Playback failed';
+                        URL.revokeObjectURL(audioUrl);
+
+                        // Fallback to browser speech
+                        fallbackVoiceWidgetSpeech(text);
+                    };
+
+                    await audio.play();
+                    console.log('✅ Playing voice widget audio');
+                } else {
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    console.error('Voice TTS error:', errorData);
+                    throw new Error(errorData.error || 'TTS failed');
+                }
+            } catch (error) {
+                console.error('TTS error:', error);
+                voiceWidgetStatus.textContent = '❌ Voice error';
+
+                // Fallback to browser speech
+                fallbackVoiceWidgetSpeech(text);
+            }
+        }
+
+        function fallbackVoiceWidgetSpeech(text) {
+            if ('speechSynthesis' in window) {
+                console.log('⚠️ Voice widget using browser speech');
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.onend = () => {
+                    voiceWidgetDot.classList.remove('speaking');
+                    voiceWidgetStatus.textContent = '';
+                };
+                utterance.onerror = () => {
+                    voiceWidgetDot.classList.remove('speaking');
+                    voiceWidgetStatus.textContent = '';
+                };
+                speechSynthesis.speak(utterance);
+            } else {
+                voiceWidgetDot.classList.remove('speaking');
+                voiceWidgetStatus.textContent = '';
+                addVoiceMessage('assistant', '⚠️ Voice playback unavailable');
+            }
+        }
+
+        function addVoiceMessage(role, content) {
+            const msg = document.createElement('div');
+            msg.className = `voice-widget-message ${role}`;
+            msg.textContent = content;
+            voiceWidgetMessages.appendChild(msg);
+            voiceWidgetMessages.scrollTop = voiceWidgetMessages.scrollHeight;
+        }
+        // ═══════════════════════════════════════════════════════════
+        // CONVERSATION MANAGEMENT
+        // ═══════════════════════════════════════════════════════════
+
+        let currentConversationId = null;
+        let conversations = [];
+
+        async function createNewConversation() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/conversations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    await loadConversations();
+                    await loadConversation(data.conversation_id);
+                }
+            } catch (error) {
+                console.error('Failed to create conversation:', error);
+            }
+        }
+
+        async function loadConversations() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/conversations`);
+                const data = await response.json();
+                conversations = data.conversations || [];
+                renderConversationsList();
+            } catch (error) {
+                console.error('Failed to load conversations:', error);
+            }
+        }
+
+        function renderConversationsList() {
+            const listEl = document.getElementById('conversationsList');
+            if (conversations.length === 0) {
+                listEl.innerHTML = '<div class="sidebar-empty">Click "+ New" to start a conversation</div>';
+                return;
+            }
+
+            let html = '';
+            conversations.forEach(conv => {
+                const isActive = conv.id === currentConversationId;
+                const date = new Date(conv.updated_at);
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                html += `
+                    <div class="conversation-item ${isActive ? 'active' : ''}" onclick="loadConversation('${conv.id}')">
+                        <div class="conversation-title">${conv.title}</div>
+                        <div class="conversation-meta">${conv.message_count} msgs • ${timeStr}</div>
+                        ${isActive ? `<div class="conversation-actions">
+                            <button class="conversation-action" onclick="event.stopPropagation(); renameConversation('${conv.id}')">Rename</button>
+                            <button class="conversation-action" onclick="event.stopPropagation(); deleteConversation('${conv.id}')">Delete</button>
+                        </div>` : ''}
+                    </div>
+                `;
+            });
+
+            listEl.innerHTML = html;
+        }
+
+        async function loadConversation(conversationId) {
+            currentConversationId = conversationId;
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/conversations/${conversationId}`);
+                const data = await response.json();
+
+                // Clear messages
+                const messagesEl = document.getElementById('messages');
+                messagesEl.innerHTML = '';
+
+                // Load messages
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        addMessage(msg.role, msg.content);
+                    });
+                }
+
+                // Update UI
+                const conv = conversations.find(c => c.id === conversationId);
+                if (conv) {
+                    document.querySelector('.logo').textContent = `AURA • ${conv.title}`;
+                }
+
+                renderConversationsList();
+            } catch (error) {
+                console.error('Failed to load conversation:', error);
+            }
+        }
+
+        async function renameConversation(conversationId) {
+            const newTitle = prompt('Enter new conversation title:');
+            if (!newTitle) return;
+
+            try {
+                await fetch(`${API_BASE}/api/aura/conversations/${conversationId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: newTitle })
+                });
+
+                await loadConversations();
+                if (currentConversationId === conversationId) {
+                    document.querySelector('.logo').textContent = `AURA • ${newTitle}`;
+                }
+            } catch (error) {
+                console.error('Failed to rename conversation:', error);
+            }
+        }
+
+        async function deleteConversation(conversationId) {
+            if (!confirm('Delete this conversation?')) return;
+
+            try {
+                await fetch(`${API_BASE}/api/aura/conversations/${conversationId}`, {
+                    method: 'DELETE'
+                });
+
+                if (currentConversationId === conversationId) {
+                    currentConversationId = null;
+                    document.querySelector('.logo').textContent = 'AURA';
+                }
+
+                await loadConversations();
+            } catch (error) {
+                console.error('Failed to delete conversation:', error);
+            }
+        }
+
+        // Load conversations on init
+        document.addEventListener('DOMContentLoaded', () => {
+            loadConversations();
+        });
+
+    </script>
+    </script>
+</body>
+</html>
