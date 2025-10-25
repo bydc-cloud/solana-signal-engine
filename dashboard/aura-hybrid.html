@@ -621,20 +621,12 @@
                         if (transcript) {
                             document.getElementById('chatInput').value = transcript;
                             await sendMessage();
-
-                            // Restart recording in voice mode after response
-                            if (isInVoiceMode && voiceStream) {
-                                setTimeout(() => restartVoiceRecording(), 1000);
-                            }
+                            // sendMessage now handles restart in voice mode
                             return;
                         }
 
                         await transcribeAudio(audioBlob);
-
-                        // Restart recording in voice mode after response
-                        if (isInVoiceMode && voiceStream) {
-                            setTimeout(() => restartVoiceRecording(), 1000);
-                        }
+                        // transcribeAudio triggers sendMessage which handles restart
                     };
 
                     mediaRecorder.start();
@@ -871,9 +863,25 @@
                     body: JSON.stringify({ query: message })
                 });
                 const data = await response.json();
-                addMessage('assistant', data.message || 'I understand.');
+                const assistantMessage = data.message || data.response || 'I understand.';
+                addMessage('assistant', assistantMessage);
+
+                // Auto-speak response immediately
+                await speakText(assistantMessage);
+
+                // Restart voice recording if in persistent voice mode
+                if (isInVoiceMode && voiceStream) {
+                    setTimeout(() => restartVoiceRecording(), 300);
+                }
             } catch (error) {
-                addMessage('assistant', 'Error connecting to AURA');
+                const errorMsg = 'Error connecting to AURA';
+                addMessage('assistant', errorMsg);
+                await speakText(errorMsg);
+
+                // Restart voice recording even on error if in persistent mode
+                if (isInVoiceMode && voiceStream) {
+                    setTimeout(() => restartVoiceRecording(), 300);
+                }
             }
         }
 
@@ -985,7 +993,7 @@
                 console.log('⚠️ Falling back to browser speech synthesis');
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 1.1;
+                utterance.rate = 1.3; // Faster speech rate
                 utterance.pitch = 1.0;
                 utterance.volume = 1.0;
                 utterance.onend = () => {
@@ -1883,11 +1891,11 @@
                     if (transcript) {
                         document.getElementById("chatInput").value = transcript;
                         await sendMessage();
-                        if (isInVoiceMode && voiceStream) setTimeout(() => restartVoiceRecording(), 1000);
+                        // sendMessage now handles restart in voice mode
                         return;
                     }
                     await transcribeAudio(audioBlob);
-                    if (isInVoiceMode && voiceStream) setTimeout(() => restartVoiceRecording(), 1000);
+                    // transcribeAudio should trigger sendMessage which handles restart
                 };
                 startBrowserRecognition();
                 mediaRecorder.start();
