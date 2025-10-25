@@ -421,7 +421,7 @@
             <div class="voice-text">LISTENING</div>
             <div class="voice-subtext">Speak naturally...</div>
             <div class="voice-timer" id="voiceTimer">00:00</div>
-            <button class="voice-cancel" onclick="cancelVoice()">Cancel</button>
+            <button class="voice-cancel" onclick="exitVoiceMode()">Cancel</button>
         </div>
 
         <div class="content">
@@ -540,6 +540,8 @@
         let currentTab = 'chat';
         let mediaRecorder = null;
         let audioChunks = [];
+        let isInVoiceMode = false; // Persistent voice conversation mode
+        let voiceStream = null;
         let allWallets = [];
         let currentFilter = 'all';
         let currentSort = { field: 'win_rate', direction: 'desc' };
@@ -578,7 +580,11 @@
 
             if (!mediaRecorder || mediaRecorder.state === 'inactive') {
                 try {
+                    // Enable persistent voice mode
+                    isInVoiceMode = true;
+
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    voiceStream = stream; // Save stream for persistent mode
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
 
@@ -597,8 +603,13 @@
 
                     mediaRecorder.onstop = async () => {
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        stream.getTracks().forEach(track => track.stop());
-                        if (audioContext) audioContext.close();
+
+                        // Don't stop stream if in persistent voice mode
+                        if (!isInVoiceMode) {
+                            stream.getTracks().forEach(track => track.stop());
+                            if (audioContext) audioContext.close();
+                        }
+
                         stopVisualization();
                         stopTimer();
                         stopSilenceDetection();
@@ -609,11 +620,21 @@
 
                         if (transcript) {
                             document.getElementById('chatInput').value = transcript;
-                            sendMessage();
+                            await sendMessage();
+
+                            // Restart recording in voice mode after response
+                            if (isInVoiceMode && voiceStream) {
+                                setTimeout(() => restartVoiceRecording(), 1000);
+                            }
                             return;
                         }
 
                         await transcribeAudio(audioBlob);
+
+                        // Restart recording in voice mode after response
+                        if (isInVoiceMode && voiceStream) {
+                            setTimeout(() => restartVoiceRecording(), 1000);
+                        }
                     };
 
                     mediaRecorder.start();
@@ -1848,7 +1869,103 @@
             loadConversations();
         });
 
+
+        function restartVoiceRecording() {
+            if (!isInVoiceMode || !voiceStream) return;
+            try {
+                mediaRecorder = new MediaRecorder(voiceStream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = (event) => { audioChunks.push(event.data); };
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+                    const transcript = browserTranscript ? browserTranscript.trim() : "";
+                    browserTranscript = null;
+                    if (transcript) {
+                        document.getElementById("chatInput").value = transcript;
+                        await sendMessage();
+                        if (isInVoiceMode && voiceStream) setTimeout(() => restartVoiceRecording(), 1000);
+                        return;
+                    }
+                    await transcribeAudio(audioBlob);
+                    if (isInVoiceMode && voiceStream) setTimeout(() => restartVoiceRecording(), 1000);
+                };
+                startBrowserRecognition();
+                mediaRecorder.start();
+                if (!audioContext || audioContext.state === "closed") {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    const source = audioContext.createMediaStreamSource(voiceStream);
+                    source.connect(analyser);
+                    analyser.fftSize = 256;
+                }
+                document.getElementById("voiceBtn").classList.add("recording");
+                document.getElementById("voiceRecording").classList.add("active");
+                startVisualization(); startTimer(); startSilenceDetection();
+                document.querySelector(".voice-text").textContent = "VOICE MODE ACTIVE";
+                document.querySelector(".voice-subtext").textContent = "Click Cancel to exit";
+            } catch (error) { console.error("Failed to restart:", error); exitVoiceMode(); }
+        }
+
+        function exitVoiceMode() {
+            isInVoiceMode = false;
+            if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+            if (voiceStream) { voiceStream.getTracks().forEach(track => track.stop()); voiceStream = null; }
+            if (audioContext) { audioContext.close(); audioContext = null; }
+            stopVisualization(); stopTimer(); stopSilenceDetection(); stopBrowserRecognition();
+            document.getElementById("voiceBtn").classList.remove("recording");
+            document.getElementById("voiceRecording").classList.remove("active");
+            document.querySelector(".voice-text").textContent = "LISTENING";
+            document.querySelector(".voice-subtext").textContent = "Speak naturally...";
+        }
     </script>
+
+        function restartVoiceRecording() {
+            if (!isInVoiceMode || !voiceStream) return;
+            try {
+                mediaRecorder = new MediaRecorder(voiceStream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = (event) => { audioChunks.push(event.data); };
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+                    const transcript = browserTranscript ? browserTranscript.trim() : "";
+                    browserTranscript = null;
+                    if (transcript) {
+                        document.getElementById("chatInput").value = transcript;
+                        await sendMessage();
+                        if (isInVoiceMode && voiceStream) setTimeout(() => restartVoiceRecording(), 1000);
+                        return;
+                    }
+                    await transcribeAudio(audioBlob);
+                    if (isInVoiceMode && voiceStream) setTimeout(() => restartVoiceRecording(), 1000);
+                };
+                startBrowserRecognition();
+                mediaRecorder.start();
+                if (!audioContext || audioContext.state === "closed") {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    const source = audioContext.createMediaStreamSource(voiceStream);
+                    source.connect(analyser);
+                    analyser.fftSize = 256;
+                }
+                document.getElementById("voiceBtn").classList.add("recording");
+                document.getElementById("voiceRecording").classList.add("active");
+                startVisualization(); startTimer(); startSilenceDetection();
+                document.querySelector(".voice-text").textContent = "VOICE MODE ACTIVE";
+                document.querySelector(".voice-subtext").textContent = "Click Cancel to exit";
+            } catch (error) { console.error("Failed to restart:", error); exitVoiceMode(); }
+        }
+
+        function exitVoiceMode() {
+            isInVoiceMode = false;
+            if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+            if (voiceStream) { voiceStream.getTracks().forEach(track => track.stop()); voiceStream = null; }
+            if (audioContext) { audioContext.close(); audioContext = null; }
+            stopVisualization(); stopTimer(); stopSilenceDetection(); stopBrowserRecognition();
+            document.getElementById("voiceBtn").classList.remove("recording");
+            document.getElementById("voiceRecording").classList.remove("active");
+            document.querySelector(".voice-text").textContent = "LISTENING";
+            document.querySelector(".voice-subtext").textContent = "Speak naturally...";
+        }
     </script>
 </body>
 </html>
