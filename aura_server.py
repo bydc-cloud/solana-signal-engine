@@ -161,6 +161,13 @@ async def dashboard_aura_complete():
     """Serve the complete AURA dashboard with whale wallet tracking"""
     return FileResponse("dashboard/aura-complete.html")
 
+# AURA Conversations Dashboard - MULTI-TAB WITH MEMORY
+@app.get("/dashboard/conversations")
+@app.get("/dashboard/aura-conversations.html")
+async def dashboard_conversations():
+    """Serve the new multi-conversation dashboard with learning"""
+    return FileResponse("dashboard/aura-conversations.html")
+
 @app.get("/dashboard/voice-widget.html")
 @app.get("/voice-widget")
 async def voice_widget():

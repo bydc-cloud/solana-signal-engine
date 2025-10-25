@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA - Multi-Conversation Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #000; color: #fff; height: 100vh; overflow: hidden; }
+
+        /* Layout */
+        .app-container { display: flex; height: 100vh; }
+
+        /* Sidebar */
+        .sidebar { width: 280px; background: #0a0a0a; border-right: 1px solid #1a1a1a; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 1.5rem; border-bottom: 1px solid #1a1a1a; }
+        .logo { font-size: 20px; font-weight: 700; color: #00ff88; margin-bottom: 1rem; }
+        .new-chat-btn { width: 100%; padding: 0.75rem; background: #00ff88; color: #000; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .new-chat-btn:hover { background: #00d4ff; transform: translateY(-1px); }
+
+        .conversations-list { flex: 1; overflow-y: auto; padding: 0.5rem; }
+        .conversation-item { padding: 0.75rem; margin-bottom: 0.5rem; background: #0f0f0f; border: 1px solid #1a1a1a; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .conversation-item:hover { border-color: #00ff88; background: #1a1a1a; }
+        .conversation-item.active { background: #1a1a1a; border-color: #00ff88; }
+        .conversation-title { font-size: 14px; font-weight: 600; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .conversation-meta { font-size: 11px; color: #666; display: flex; justify-content: space-between; }
+        .conversation-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+        .conversation-action { padding: 0.25rem 0.5rem; background: transparent; border: 1px solid #2a2a2a; color: #666; font-size: 11px; border-radius: 4px; cursor: pointer; }
+        .conversation-action:hover { border-color: #00ff88; color: #00ff88; }
+
+        /* Main */
+        .main { flex: 1; display: flex; flex-direction: column; }
+        .main-header { background: #0a0a0a; border-bottom: 1px solid #1a1a1a; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .current-conversation-title { font-size: 16px; font-weight: 600; }
+        .header-actions { display: flex; gap: 1rem; align-items: center; }
+        .status-indicator { display: flex; align-items: center; gap: 0.5rem; font-size: 13px; color: #666; }
+        .status-dot { width: 6px; height: 6px; background: #00ff88; border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* Chat */
+        .chat-container { flex: 1; overflow-y: auto; padding: 2rem; max-width: 900px; margin: 0 auto; width: 100%; }
+        .messages { display: flex; flex-direction: column; gap: 1.5rem; }
+        .message { display: flex; gap: 1rem; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .message-avatar { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; background: #1a1a1a; color: #666; font-weight: 600; }
+        .message.user .message-avatar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; }
+        .message.assistant .message-avatar { background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%); color: #000; }
+        .message-content { flex: 1; font-size: 15px; line-height: 1.7; color: #e0e0e0; }
+
+        .chat-input-area { padding: 1.5rem 2rem; border-top: 1px solid #1a1a1a; max-width: 900px; margin: 0 auto; width: 100%; }
+        .input-wrapper { display: flex; gap: 0.75rem; }
+        .chat-input { flex: 1; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 12px; padding: 1rem; color: #fff; font-size: 15px; font-family: inherit; resize: none; max-height: 150px; }
+        .chat-input:focus { outline: none; border-color: #00ff88; }
+
+        .voice-btn, .send-btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+        .voice-btn { background: #1a1a1a; color: #00ff88; border: 1px solid #00ff88; width: 48px; height: 48px; padding: 0; }
+        .voice-btn:hover { background: rgba(0, 255, 136, 0.1); transform: translateY(-2px); }
+        .voice-btn.recording { background: #ff4444; color: #fff; border-color: #ff4444; animation: recordPulse 1s ease-in-out infinite; }
+        @keyframes recordPulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7); } 50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(255, 68, 68, 0); } }
+        .voice-btn svg { width: 20px; height: 20px; }
+        .send-btn { background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%); color: #000; }
+        .send-btn:hover { transform: translateY(-1px); }
+
+        /* Voice Recording Overlay */
+        .voice-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .voice-overlay.active { display: flex; }
+        .voice-modal { text-align: center; }
+        .voice-orb { width: 180px; height: 180px; margin: 0 auto 2rem; border-radius: 50%; background: radial-gradient(circle, rgba(0, 255, 136, 0.4), transparent 70%); position: relative; display: flex; align-items: center; justify-content: center; }
+        .voice-icon-container { width: 80px; height: 80px; background: #00ff88; border-radius: 50%; display: flex; align-items: center; justify-content: center; animation: iconPulse 1.5s ease-in-out infinite; }
+        @keyframes iconPulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(0, 255, 136, 0.5); } 50% { transform: scale(1.1); box-shadow: 0 0 40px rgba(0, 255, 136, 0.8); } }
+        .voice-text { color: #00ff88; font-size: 18px; font-weight: 600; margin-bottom: 0.5rem; }
+        .voice-subtext { color: #666; font-size: 14px; }
+        .voice-timer { font-family: 'JetBrains Mono', monospace; color: #00ff88; font-size: 20px; margin-top: 1rem; }
+        .voice-cancel { margin-top: 1.5rem; padding: 0.75rem 2rem; background: transparent; border: 1px solid #ff4444; color: #ff4444; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
+        .voice-cancel:hover { background: rgba(255, 68, 68, 0.1); }
+
+        /* Empty State */
+        .empty-state { text-align: center; padding: 4rem 2rem; color: #666; }
+        .empty-state-icon { font-size: 4rem; margin-bottom: 1rem; opacity: 0.5; }
+        .empty-state-text { font-size: 18px; margin-bottom: 0.5rem; }
+        .empty-state-subtext { font-size: 14px; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2a2a2a; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { width: 240px; }
+            .chat-container, .chat-input-area { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Voice Recording Overlay -->
+    <div class="voice-overlay" id="voiceOverlay">
+        <div class="voice-modal">
+            <div class="voice-orb">
+                <div class="voice-icon-container">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="40" height="40">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="voice-text">LISTENING</div>
+            <div class="voice-subtext">Speak naturally...</div>
+            <div class="voice-timer" id="voiceTimer">00:00</div>
+            <button class="voice-cancel" onclick="cancelVoice()">Cancel</button>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">🤖 AURA</div>
+                <button class="new-chat-btn" onclick="createNewConversation()">+ New Conversation</button>
+            </div>
+            <div class="conversations-list" id="conversationsList">
+                <div class="empty-state">
+                    <div class="empty-state-text">No conversations yet</div>
+                    <div class="empty-state-subtext">Click "New Conversation" to start</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div class="main">
+            <div class="main-header">
+                <div class="current-conversation-title" id="currentConversationTitle">New Conversation</div>
+                <div class="header-actions">
+                    <div class="status-indicator">
+                        <div class="status-dot"></div>
+                        <span id="statusText">Online</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-container" id="chatContainer">
+                <div class="messages" id="messages">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <div class="empty-state-text">Start a conversation with AURA</div>
+                        <div class="empty-state-subtext">Ask about wallets, signals, portfolio, or market trends</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-wrapper">
+                    <textarea id="chatInput" class="chat-input" placeholder="Ask AURA anything..." rows="2" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+                    <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                        </svg>
+                    </button>
+                    <button class="send-btn" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let currentConversationId = null;
+        let conversations = [];
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let voiceTimer = null;
+        let voiceStartTime = 0;
+        let currentAudio = null;
+        let isSpeaking = false;
+        let speakQueue = [];
+
+        // Initialize
+        async function init() {
+            await loadConversations();
+            connectWebSocket();
+        }
+
+        // Conversation Management
+        async function loadConversations() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/conversations`);
+                const data = await response.json();
+                conversations = data.conversations || [];
+                renderConversationsList();
+            } catch (error) {
+                console.error('Failed to load conversations:', error);
+            }
+        }
+
+        function renderConversationsList() {
+            const listEl = document.getElementById('conversationsList');
+
+            if (conversations.length === 0) {
+                listEl.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-text">No conversations yet</div>
+                        <div class="empty-state-subtext">Click "New Conversation" to start</div>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            conversations.forEach(conv => {
+                const isActive = conv.id === currentConversationId;
+                const date = new Date(conv.updated_at);
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                html += `
+                    <div class="conversation-item ${isActive ? 'active' : ''}" onclick="loadConversation('${conv.id}')">
+                        <div class="conversation-title">${conv.title}</div>
+                        <div class="conversation-meta">
+                            <span>${conv.message_count} messages</span>
+                            <span>${timeStr}</span>
+                        </div>
+                        ${isActive ? `
+                            <div class="conversation-actions">
+                                <button class="conversation-action" onclick="event.stopPropagation(); renameConversation('${conv.id}')">Rename</button>
+                                <button class="conversation-action" onclick="event.stopPropagation(); deleteConversation('${conv.id}')">Delete</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            listEl.innerHTML = html;
+        }
+
+        async function createNewConversation() {
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/conversations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    await loadConversations();
+                    await loadConversation(data.conversation_id);
+                }
+            } catch (error) {
+                console.error('Failed to create conversation:', error);
+            }
+        }
+
+        async function loadConversation(conversationId) {
+            try {
+                currentConversationId = conversationId;
+
+                // Load conversation history
+                const response = await fetch(`${API_BASE}/api/aura/conversations/${conversationId}`);
+                const data = await response.json();
+
+                // Clear messages
+                const messagesEl = document.getElementById('messages');
+                messagesEl.innerHTML = '';
+
+                // Render messages
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        addMessageToUI(msg.role, msg.content, false);
+                    });
+                } else {
+                    messagesEl.innerHTML = `
+                        <div class="message assistant">
+                            <div class="message-avatar">AI</div>
+                            <div class="message-content">I'm AURA. Ask me anything about signals, portfolio, market trends, or wallet activity.</div>
+                        </div>
+                    `;
+                }
+
+                // Update title
+                const conv = conversations.find(c => c.id === conversationId);
+                if (conv) {
+                    document.getElementById('currentConversationTitle').textContent = conv.title;
+                }
+
+                renderConversationsList();
+                scrollToBottom();
+            } catch (error) {
+                console.error('Failed to load conversation:', error);
+            }
+        }
+
+        async function renameConversation(conversationId) {
+            const newTitle = prompt('Enter new conversation title:');
+            if (!newTitle) return;
+
+            try {
+                await fetch(`${API_BASE}/api/aura/conversations/${conversationId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: newTitle })
+                });
+
+                await loadConversations();
+                if (currentConversationId === conversationId) {
+                    document.getElementById('currentConversationTitle').textContent = newTitle;
+                }
+            } catch (error) {
+                console.error('Failed to rename conversation:', error);
+            }
+        }
+
+        async function deleteConversation(conversationId) {
+            if (!confirm('Delete this conversation?')) return;
+
+            try {
+                await fetch(`${API_BASE}/api/aura/conversations/${conversationId}`, {
+                    method: 'DELETE'
+                });
+
+                if (currentConversationId === conversationId) {
+                    currentConversationId = null;
+                    document.getElementById('messages').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💬</div>
+                            <div class="empty-state-text">Start a conversation with AURA</div>
+                            <div class="empty-state-subtext">Ask about wallets, signals, portfolio, or market trends</div>
+                        </div>
+                    `;
+                    document.getElementById('currentConversationTitle').textContent = 'New Conversation';
+                }
+
+                await loadConversations();
+            } catch (error) {
+                console.error('Failed to delete conversation:', error);
+            }
+        }
+
+        // Chat Functions
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessageToUI('user', message);
+            input.value = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: message,
+                        conversation_id: currentConversationId
+                    })
+                });
+
+                const data = await response.json();
+
+                // Update conversation ID if new
+                if (data.conversation_id && !currentConversationId) {
+                    currentConversationId = data.conversation_id;
+                    await loadConversations();
+                }
+
+                addMessageToUI('assistant', data.message || data.response || 'I understand.');
+
+                // Speak response
+                if (data.message || data.response) {
+                    speakText(data.message || data.response);
+                }
+            } catch (error) {
+                addMessageToUI('assistant', 'Error connecting to AURA');
+                console.error('Chat error:', error);
+            }
+        }
+
+        function addMessageToUI(role, content, shouldSpeak = true) {
+            const messagesEl = document.getElementById('messages');
+
+            // Remove empty state if present
+            const emptyState = messagesEl.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${role === 'user' ? 'YOU' : 'AI'}</div>
+                <div class="message-content">${content}</div>
+            `;
+
+            messagesEl.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('chatContainer');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Voice Functions
+        async function toggleVoice() {
+            const voiceBtn = document.getElementById('voiceBtn');
+            const voiceOverlay = document.getElementById('voiceOverlay');
+
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        stream.getTracks().forEach(track => track.stop());
+                        stopTimer();
+                        await transcribeAudio(audioBlob);
+                    };
+
+                    mediaRecorder.start();
+                    voiceBtn.classList.add('recording');
+                    voiceOverlay.classList.add('active');
+                    startTimer();
+                } catch (error) {
+                    console.error('Microphone error:', error);
+                    alert('Microphone access denied');
+                }
+            } else {
+                mediaRecorder.stop();
+                voiceBtn.classList.remove('recording');
+                voiceOverlay.classList.remove('active');
+            }
+        }
+
+        function cancelVoice() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            stopTimer();
+            document.getElementById('voiceBtn').classList.remove('recording');
+            document.getElementById('voiceOverlay').classList.remove('active');
+        }
+
+        function startTimer() {
+            voiceStartTime = Date.now();
+            voiceTimer = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - voiceStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('voiceTimer').textContent = `${minutes}:${seconds}`;
+            }, 100);
+        }
+
+        function stopTimer() {
+            if (voiceTimer) {
+                clearInterval(voiceTimer);
+                voiceTimer = null;
+            }
+            document.getElementById('voiceTimer').textContent = '00:00';
+        }
+
+        async function transcribeAudio(audioBlob) {
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'voice.webm');
+
+                const response = await fetch(`${API_BASE}/api/aura/voice`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.transcription) {
+                    document.getElementById('chatInput').value = data.transcription;
+                    sendMessage();
+                } else {
+                    addMessageToUI('assistant', '⚠️ Could not transcribe audio');
+                }
+            } catch (error) {
+                console.error('Transcription error:', error);
+                addMessageToUI('assistant', '⚠️ Voice transcription failed');
+            }
+        }
+
+        async function speakText(text) {
+            if (isSpeaking) {
+                speakQueue.push(text);
+                return;
+            }
+
+            isSpeaking = true;
+            const statusText = document.getElementById('statusText');
+            const originalStatus = statusText.textContent;
+            statusText.textContent = '🔊 Speaking...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/aura/voice/elevenlabs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) throw new Error('TTS failed');
+
+                const audioBlob = await response.blob();
+                if (audioBlob.size === 0) throw new Error('Empty audio');
+
+                const audioUrl = URL.createObjectURL(audioBlob);
+                currentAudio = new Audio(audioUrl);
+
+                currentAudio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                    isSpeaking = false;
+                    statusText.textContent = originalStatus;
+
+                    if (speakQueue.length > 0) {
+                        const nextText = speakQueue.shift();
+                        setTimeout(() => speakText(nextText), 100);
+                    }
+                };
+
+                currentAudio.onerror = () => {
+                    isSpeaking = false;
+                    statusText.textContent = originalStatus;
+                    URL.revokeObjectURL(audioUrl);
+                };
+
+                await currentAudio.play();
+            } catch (error) {
+                console.error('TTS error:', error);
+                isSpeaking = false;
+                statusText.textContent = originalStatus;
+            }
+        }
+
+        // WebSocket
+        function connectWebSocket() {
+            try {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+                const ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    document.getElementById('statusText').textContent = 'Online (Live)';
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('WebSocket message:', data);
+                    } catch (e) {
+                        console.log('WebSocket message:', event.data);
+                    }
+                };
+
+                ws.onerror = (error) => console.error('WebSocket error:', error);
+                ws.onclose = () => {
+                    document.getElementById('statusText').textContent = 'Reconnecting...';
+                    setTimeout(connectWebSocket, 3000);
+                };
+            } catch (error) {
+                console.error('WebSocket connection error:', error);
+            }
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
