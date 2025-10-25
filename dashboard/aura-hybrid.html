@@ -872,7 +872,7 @@
                 const assistantMessage = data.message || data.response || 'I understand.';
                 addMessage('assistant', assistantMessage);
 
-                // Speak and wait for completion, then restart listening
+                // Always use ElevenLabs for high-quality voice
                 speakText(assistantMessage, wasInVoiceMode);
             } catch (error) {
                 const errorMsg = 'Error connecting to AURA';
@@ -1031,6 +1031,53 @@
                 // Restart voice mode even if no speech available
                 if (shouldRestartVoice && isInVoiceMode && voiceStream) {
                     setTimeout(() => restartVoiceRecording(), 500);
+                }
+            }
+        }
+
+        function speakTextFast(text, shouldRestartVoice = false) {
+            // Use instant browser speech for fast voice responses
+            if ('speechSynthesis' in window) {
+                console.log('🔊 Fast speech (browser):', text.substring(0, 50) + '...');
+                window.speechSynthesis.cancel();
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 1.4; // Faster for quick responses
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+
+                utterance.onstart = () => {
+                    isSpeaking = true;
+                    document.getElementById('statusText').textContent = '🔊 Speaking...';
+                };
+
+                utterance.onend = () => {
+                    console.log('✅ Fast speech complete');
+                    isSpeaking = false;
+                    document.getElementById('statusText').textContent = 'AURA Active';
+
+                    // Restart voice mode after speaking if requested
+                    if (shouldRestartVoice && isInVoiceMode && voiceStream) {
+                        console.log('🎤 Restarting voice recording...');
+                        setTimeout(() => restartVoiceRecording(), 300);
+                    }
+                };
+
+                utterance.onerror = (e) => {
+                    console.error('❌ Fast speech error:', e);
+                    isSpeaking = false;
+                    // Still restart even on error
+                    if (shouldRestartVoice && isInVoiceMode && voiceStream) {
+                        setTimeout(() => restartVoiceRecording(), 300);
+                    }
+                };
+
+                window.speechSynthesis.speak(utterance);
+            } else {
+                console.error('❌ No speech synthesis available');
+                // Restart voice mode even if no speech
+                if (shouldRestartVoice && isInVoiceMode && voiceStream) {
+                    setTimeout(() => restartVoiceRecording(), 300);
                 }
             }
         }
