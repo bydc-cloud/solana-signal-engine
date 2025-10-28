@@ -1610,60 +1610,54 @@ class RealityMomentumScanner:
                         if len(self.signal_history) > 500:
                             self.signal_history = self.signal_history[-500:]
 
-                        # Store in AURA database
+                        # Send to AURA webhook (fast, non-blocking)
                         try:
-                            import sqlite3
-                            import json
-                            conn = sqlite3.connect('aura.db', timeout=10)
-                            cur = conn.cursor()
+                            # Determine tier based on signal strength
+                            if signal_strength >= 85:
+                                tier = "GOLD"
+                            elif signal_strength >= 75:
+                                tier = "SILVER"
+                            else:
+                                tier = "BRONZE"
 
-                            # Create table if not exists
-                            cur.execute("""
-                                CREATE TABLE IF NOT EXISTS helix_signals (
-                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    token_address TEXT NOT NULL,
-                                    symbol TEXT NOT NULL,
-                                    momentum_score REAL,
-                                    market_cap REAL,
-                                    liquidity REAL,
-                                    volume_24h REAL,
-                                    price REAL,
-                                    timestamp TEXT NOT NULL,
-                                    metadata TEXT
-                                )
-                            """)
-
-                            cur.execute("""
-                                INSERT INTO helix_signals
-                                (token_address, symbol, momentum_score, market_cap, liquidity, volume_24h, price, timestamp, metadata)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (
-                                address,
-                                symbol,
-                                signal_strength,
-                                mcap,
-                                token.get('liquidity', 0),
-                                volume,
-                                price,
-                                sent_at.isoformat(),
-                                json.dumps({
+                            webhook_data = {
+                                'token_address': address,
+                                'symbol': symbol,
+                                'name': token.get('name', symbol),
+                                'momentum_score': signal_strength,
+                                'market_cap': mcap,
+                                'liquidity': token.get('liquidity', 0),
+                                'price_usd': price,
+                                'volume_24h': volume,
+                                'price_change_24h': change,
+                                'holder_count': holders,
+                                'tier': tier,
+                                'metadata': {
                                     'risk_score': validation['risk_score'],
+                                    'risk_level': risk_level,
                                     'buyer_dominance': dominance_pct,
+                                    'momentum_score': momentum_score,
                                     'narrative': narrative,
-                                    'holders': holders,
-                                    'buys_1h': buy1h,
-                                    'buys_5m': buy5m,
+                                    'strategy': strategy,
                                     'helius_wallets_1h': helius_wallets_1h,
-                                    'helius_buy_volume_1h_usd': helius_buy_usd,
-                                    'strategy': strategy
-                                })
-                            ))
+                                    'helius_buy_usd': helius_buy_usd,
+                                    'helius_tx_1h': helius_tx_1h,
+                                    'buy1h': buy1h,
+                                    'turnover': turnover,
+                                    'age': age_label,
+                                    'last_trade_minutes': last_trade_minutes
+                                }
+                            }
 
-                            conn.commit()
-                            conn.close()
-                            logger.info(f"✅ Stored signal in AURA database: ${symbol}")
-                        except Exception as db_error:
-                            logger.error(f"Failed to store signal in AURA db: {db_error}")
+                            # Send to AURA webhook
+                            webhook_url = os.getenv('AURA_WEBHOOK_URL', 'http://localhost:8000/api/aura/signals/webhook')
+                            async with session.post(webhook_url, json=webhook_data, timeout=5) as webhook_response:
+                                if webhook_response.status == 200:
+                                    logger.info(f"✅ Sent signal to AURA dashboard: ${symbol}")
+                                else:
+                                    logger.warning(f"⚠️ AURA webhook failed: HTTP {webhook_response.status}")
+                        except Exception as webhook_error:
+                            logger.error(f"Failed to send to AURA webhook: {webhook_error}")
 
                         return True
                     else:
