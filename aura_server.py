@@ -701,6 +701,51 @@ async def get_scanner_signals(hours: int = 24, limit: int = 50):
     """Get recent scanner signals (alias for /api/aura/signals)"""
     return await get_signals(hours, limit)
 
+@app.post("/api/aura/signals/webhook")
+async def signals_webhook(request: Request):
+    """Webhook endpoint for scanner to push signals"""
+    try:
+        data = await request.json()
+
+        # Support both single signal and batch
+        signals = data if isinstance(data, list) else [data]
+
+        from aura.database import db
+        added_count = 0
+
+        for signal in signals:
+            try:
+                signal_id = db.add_signal(
+                    token_address=signal.get('token_address', signal.get('address')),
+                    symbol=signal.get('symbol', 'UNKNOWN'),
+                    name=signal.get('name', signal.get('symbol', 'Unknown Token')),
+                    momentum_score=signal.get('momentum_score', signal.get('score', 0)),
+                    market_cap=signal.get('market_cap', signal.get('mc', 0)),
+                    liquidity=signal.get('liquidity', signal.get('liq', 0)),
+                    price_usd=signal.get('price_usd', signal.get('price', None)),
+                    volume_24h=signal.get('volume_24h', signal.get('volume', None)),
+                    price_change_24h=signal.get('price_change_24h', signal.get('change', None)),
+                    holder_count=signal.get('holder_count', signal.get('holders', None)),
+                    metadata=signal.get('metadata', {}),
+                    tier=signal.get('tier', 'UNKNOWN')
+                )
+                added_count += 1
+                logger.info(f"✅ Added signal: {signal.get('symbol')} (ID: {signal_id})")
+            except Exception as e:
+                logger.error(f"❌ Failed to add signal {signal.get('symbol')}: {e}")
+
+        return {
+            "success": True,
+            "added": added_count,
+            "total": len(signals),
+            "message": f"Successfully added {added_count}/{len(signals)} signals"
+        }
+    except Exception as e:
+        logger.error(f"❌ Webhook error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {"success": False, "error": str(e)}
+
 @app.post("/api/aura/track_whales_live")
 async def track_whales_live():
     """Trigger live tracking of ALL whale wallets using Helius"""

@@ -286,10 +286,10 @@ BE CONSCIOUS & CONVERSATIONAL: You're not just outputting data - you're having a
     async def _claude_with_tools(self, text: str) -> Dict[str, Any]:
         """Use Claude with function calling to process command"""
         try:
-            # Initial Claude request with tools
+            # Initial Claude request with tools - ULTRA-FAST MODE
             message = self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",
-                max_tokens=500,  # Optimized for fast voice responses (2-4 sentences)
+                max_tokens=250,  # Lightning fast: 1-2 sentences max
                 tools=TOOLS,
                 system=self.system_prompt,
                 messages=[{"role": "user", "content": text}]
@@ -328,10 +328,10 @@ BE CONSCIOUS & CONVERSATIONAL: You're not just outputting data - you're having a
                         "content": json.dumps(result)
                     })
 
-                # Continue conversation with tool results
+                # Continue conversation with tool results - ULTRA-FAST MODE
                 message = self.client.messages.create(
                     model="claude-3-5-sonnet-20241022",
-                    max_tokens=500,  # Optimized for fast voice responses (2-4 sentences)
+                    max_tokens=250,  # Lightning fast: 1-2 sentences max
                     tools=TOOLS,
                     system=self.system_prompt,
                     messages=[
