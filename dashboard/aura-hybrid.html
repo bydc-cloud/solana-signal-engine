@@ -872,12 +872,16 @@
                 const assistantMessage = data.message || data.response || 'I understand.';
                 addMessage('assistant', assistantMessage);
 
-                // Always use ElevenLabs for high-quality voice
-                speakText(assistantMessage, wasInVoiceMode);
+                // Use instant browser speech for voice mode
+                if (wasInVoiceMode) {
+                    speakTextFast(assistantMessage, wasInVoiceMode);
+                } else {
+                    speakText(assistantMessage, wasInVoiceMode);
+                }
             } catch (error) {
                 const errorMsg = 'Error connecting to AURA';
                 addMessage('assistant', errorMsg);
-                speakText(errorMsg, wasInVoiceMode);
+                speakTextFast(errorMsg, wasInVoiceMode);
             }
         }
 

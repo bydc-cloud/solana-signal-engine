@@ -403,39 +403,111 @@ class AuraDB:
             return configs
 
     # ═══════════════════════════════════════════════════════════
-    # HELIX SCANNER INTEGRATION
+    # SCANNER SIGNALS
     # ═══════════════════════════════════════════════════════════
 
-    def get_recent_helix_signals(self, hours: int = 24, limit: int = 100) -> List[Dict]:
-        """Get recent signals from Helix scanner"""
+    def add_signal(self, token_address: str, symbol: str, name: str,
+                   momentum_score: float, market_cap: float, liquidity: float,
+                   price_usd: float = None, volume_24h: float = None,
+                   price_change_24h: float = None, holder_count: int = None,
+                   metadata: Dict = None, tier: str = "UNKNOWN") -> int:
+        """Add a new scanner signal"""
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            expires_at = (datetime.now() + timedelta(hours=24)).isoformat()
+            cur.execute("""
+                INSERT INTO scanner_signals (
+                    token_address, symbol, name, momentum_score, market_cap,
+                    liquidity, price_usd, volume_24h, price_change_24h,
+                    holder_count, metadata, tier, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (token_address, symbol, name, momentum_score, market_cap,
+                  liquidity, price_usd, volume_24h, price_change_24h,
+                  holder_count, json.dumps(metadata or {}), tier, expires_at))
+            conn.commit()
+            return cur.lastrowid
+
+    def get_recent_signals(self, hours: int = 24, limit: int = 100) -> List[Dict]:
+        """Get recent scanner signals"""
         cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
 
-        with sqlite3.connect(HELIX_DB_PATH) as conn:
+        with self._get_conn() as conn:
             cur = conn.cursor()
             cur.execute("""
-                SELECT id, token_address, symbol, created_at, grad_gs, payload
-                FROM alerts
-                WHERE created_at >= ?
-                ORDER BY created_at DESC
+                SELECT id, token_address, symbol, name, momentum_score,
+                       market_cap, liquidity, price_usd, volume_24h,
+                       price_change_24h, holder_count, metadata, tier, timestamp
+                FROM scanner_signals
+                WHERE timestamp >= ?
+                ORDER BY momentum_score DESC, timestamp DESC
                 LIMIT ?
             """, (cutoff, limit))
 
             signals = []
             for row in cur.fetchall():
                 try:
-                    payload = json.loads(row[5]) if row[5] else {}
+                    metadata = json.loads(row[11]) if row[11] else {}
                 except:
-                    payload = {}
+                    metadata = {}
 
                 signals.append({
                     "id": row[0],
                     "token_address": row[1],
                     "symbol": row[2],
-                    "created_at": row[3],
+                    "name": row[3],
                     "momentum_score": row[4],
-                    "payload": payload,
+                    "market_cap": row[5],
+                    "liquidity": row[6],
+                    "price_usd": row[7],
+                    "volume_24h": row[8],
+                    "price_change_24h": row[9],
+                    "holder_count": row[10],
+                    "metadata": metadata,
+                    "tier": row[12],
+                    "timestamp": row[13]
                 })
             return signals
+
+    def get_recent_helix_signals(self, hours: int = 24, limit: int = 100) -> List[Dict]:
+        """Get recent signals from Helix scanner (legacy)"""
+        # Try new scanner_signals table first
+        signals = self.get_recent_signals(hours, limit)
+        if signals:
+            return signals
+
+        # Fallback to old helix database
+        cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+
+        try:
+            with sqlite3.connect(HELIX_DB_PATH) as conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT id, token_address, symbol, created_at, grad_gs, payload
+                    FROM alerts
+                    WHERE created_at >= ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (cutoff, limit))
+
+                signals = []
+                for row in cur.fetchall():
+                    try:
+                        payload = json.loads(row[5]) if row[5] else {}
+                    except:
+                        payload = {}
+
+                    signals.append({
+                        "id": row[0],
+                        "token_address": row[1],
+                        "symbol": row[2],
+                        "created_at": row[3],
+                        "momentum_score": row[4],
+                        "payload": payload,
+                    })
+                return signals
+        except Exception as e:
+            print(f"Error reading helix signals: {e}")
+            return []
 
 
 # Singleton instance
