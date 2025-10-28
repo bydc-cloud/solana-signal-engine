@@ -800,30 +800,31 @@ async def get_strategy_metrics(strategy_id: int):
 
 # Wallet tracking endpoint
 @router.get("/wallets")
-async def get_tracked_wallets():
+async def get_tracked_wallets(limit: int = 500):
     """Get all tracked whale wallets"""
     try:
         with db._get_conn() as conn:
             cur = conn.cursor()
             cur.execute("""
-                SELECT address, win_rate, avg_pnl, total_trades, successful_trades, last_updated
+                SELECT address, nickname, win_rate, avg_pnl, total_trades, successful_trades, last_updated
                 FROM tracked_wallets
                 WHERE is_active = 1
                 ORDER BY (win_rate * avg_pnl) DESC
-                LIMIT 100
-            """)
-            
+                LIMIT ?
+            """, (limit,))
+
             wallets = []
             for row in cur.fetchall():
                 wallets.append({
                     'address': row[0],
-                    'win_rate': row[1],
-                    'avg_pnl': row[2],
-                    'total_trades': row[3],
-                    'successful_trades': row[4],
-                    'last_updated': row[5]
+                    'nickname': row[1],
+                    'win_rate': row[2],
+                    'avg_pnl': row[3],
+                    'total_trades': row[4],
+                    'successful_trades': row[5],
+                    'last_updated': row[6]
                 })
-            
+
             return {"wallets": wallets, "count": len(wallets)}
     except Exception as e:
         return {"wallets": [], "count": 0}
